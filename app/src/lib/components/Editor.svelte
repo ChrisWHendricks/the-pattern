@@ -6,6 +6,7 @@
   import TurndownService from "turndown";
   import { SlashCommands } from "$lib/editor/slash-commands";
   import { BlockActions } from "$lib/editor/block-actions";
+  import { settings } from "$lib/stores/settings.svelte";
 
   type Props = {
     content: string;
@@ -28,6 +29,7 @@
   const AUTOSAVE_DELAY = 1500;
 
   function scheduleAutosave() {
+    if (!settings.autosave) return;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
@@ -238,7 +240,11 @@
       title="Toggle raw markdown"
     >Raw</button>
 
-    <span class="save-status" class:visible={saving}>Saving…</span>
+    {#if settings.autosave}
+      <span class="save-status" class:visible={saving}>Saving…</span>
+    {:else}
+      <button class="toolbar-btn save-btn" onclick={save} title="Save (⌘S)">Save</button>
+    {/if}
   </div>
 
   {#if rawMode}
@@ -316,6 +322,18 @@
   .chat-btn.active {
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .save-btn {
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    opacity: 0.7;
+  }
+
+  .save-btn:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
   }
 
   .save-status {
@@ -531,11 +549,11 @@
   :global(.block-handle) {
     position: fixed;
     display: none;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     gap: 2px;
-    width: 44px;
+    width: 48px;
     pointer-events: auto;
     z-index: 100;
   }

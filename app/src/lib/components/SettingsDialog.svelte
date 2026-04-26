@@ -7,6 +7,7 @@
   let draftKey = $state(settings.apiKey);
   let draftModel = $state<ModelKey>(settings.model);
   let draftVaultPath = $state(settings.vaultPath);
+  let draftAutosave = $state(settings.autosave);
   let showKey = $state(false);
 
   // Only pre-fill the default path once on open, never re-fill when cleared
@@ -20,7 +21,7 @@
 
   function save() {
     if (!draftKey.trim()) return;
-    settings.save(draftKey.trim(), draftModel, draftVaultPath.trim());
+    settings.save(draftKey.trim(), draftModel, draftVaultPath.trim(), draftAutosave);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -104,6 +105,25 @@
       ></textarea>
       <div class="field-hint">
         Folder where your markdown notes are stored. Use your Google Drive path to sync across devices.
+      </div>
+    </div>
+
+    <div class="field toggle-field">
+      <div class="toggle-row">
+        <div>
+          <p class="field-label">Autosave notes</p>
+          <div class="field-hint">Save automatically after 1.5 s of inactivity. Turn off to save manually with ⌘S.</div>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={draftAutosave}
+          onclick={() => (draftAutosave = !draftAutosave)}
+          role="switch"
+          aria-checked={draftAutosave}
+          aria-label="Toggle autosave"
+        >
+          <span class="toggle-thumb"></span>
+        </button>
       </div>
     </div>
 
@@ -287,6 +307,48 @@
   .model-desc {
     font-size: 11px;
     display: block;
+  }
+
+  .toggle-field {
+    margin-bottom: 20px;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .toggle-btn {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    border: none;
+    background: var(--border);
+    cursor: pointer;
+    padding: 2px;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+  }
+
+  .toggle-btn.on {
+    background: var(--accent);
+  }
+
+  .toggle-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+    display: block;
+  }
+
+  .toggle-btn.on .toggle-thumb {
+    transform: translateX(16px);
   }
 
   .dialog-actions {
