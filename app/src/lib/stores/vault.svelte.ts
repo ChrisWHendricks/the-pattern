@@ -11,6 +11,7 @@ import {
 import { exists } from "@tauri-apps/plugin-fs";
 import { settings } from "$lib/stores/settings.svelte";
 import type { IndexedInscription } from "$lib/search";
+import { shadowsStore } from "$lib/stores/shadows.svelte";
 
 function createVaultStore() {
   let inscriptions = $state<InscriptionFile[]>([]);
@@ -91,6 +92,7 @@ function createVaultStore() {
 
       if (shouldRename && !pathConflict) {
         await renameAndWrite(oldPath, newPath, content);
+        shadowsStore.updatePath(oldPath, newPath);
         const renamed: InscriptionFile = { name: desiredSlug, path: newPath, title: newTitle };
         currentInscription = renamed;
 

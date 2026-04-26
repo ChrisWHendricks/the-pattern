@@ -1,6 +1,43 @@
 <script lang="ts">
   import { vault } from "$lib/stores/vault.svelte";
   import { settings } from "$lib/stores/settings.svelte";
+  import { shadowsStore } from "$lib/stores/shadows.svelte";
+  import ContextMenu from "$lib/components/ContextMenu.svelte";
+  import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
+  import type { InscriptionFile } from "$lib/vault";
+
+  let contextMenu = $state<{ x: number; y: number; inscription: InscriptionFile } | null>(null);
+
+  function buildMenuItems(inscription: InscriptionFile): MenuEntry[] {
+    const items: MenuEntry[] = [];
+
+    if (shadowsStore.shadows.length === 0) {
+      items.push({ label: "No shadows yet — create one first", disabled: true, action: () => {} });
+      return items;
+    }
+
+    items.push({ label: "Assign to Shadow", disabled: true, action: () => {} });
+    items.push({ separator: true });
+
+    for (const shadow of shadowsStore.shadows) {
+      const assigned = shadowsStore.isAssigned(shadow.id, inscription.path);
+      items.push({
+        label: shadow.name,
+        checked: assigned,
+        action: () => {
+          if (assigned) shadowsStore.unassign(shadow.id, inscription.path);
+          else shadowsStore.assign(shadow.id, inscription.path);
+        },
+      });
+    }
+
+    return items;
+  }
+
+  function onContextMenu(e: MouseEvent, inscription: InscriptionFile) {
+    e.preventDefault();
+    contextMenu = { x: e.clientX, y: e.clientY, inscription };
+  }
 </script>
 
 <div class="inscriptions-list">
@@ -17,9 +54,7 @@
   {#if !settings.vaultPath}
     <div class="empty-state">
       <p>Set your vault path in Settings to get started.</p>
-      <button class="link-btn" onclick={() => settings.openSettings()}>
-        Open Settings →
-      </button>
+      <button class="link-btn" onclick={() => settings.openSettings()}>Open Settings →</button>
     </div>
   {:else if vault.isLoading && vault.inscriptions.length === 0}
     <div class="loading">Loading inscriptions…</div>
@@ -37,7 +72,10 @@
           <button
             class="inscription-item"
             class:active={vault.currentInscription?.path === inscription.path}
+            draggable="true"
             onclick={() => vault.openInscription(inscription)}
+            oncontextmenu={(e) => onContextMenu(e, inscription)}
+            ondragstart={(e) => e.dataTransfer?.setData("text/inscription-path", inscription.path)}
           >
             <span class="inscription-icon">◻</span>
             <span class="inscription-title">{inscription.title}</span>
@@ -54,6 +92,15 @@
     <div class="error-msg">{vault.error}</div>
   {/if}
 </div>
+
+{#if contextMenu}
+  <ContextMenu
+    x={contextMenu.x}
+    y={contextMenu.y}
+    items={buildMenuItems(contextMenu.inscription)}
+    onClose={() => (contextMenu = null)}
+  />
+{/if}
 
 <style>
   .inscriptions-list {
@@ -100,21 +147,14 @@
     transition: color 0.15s, border-color 0.15s;
   }
 
-  .new-btn:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-
-  .new-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
+  .new-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .new-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
   .inscription-items {
     flex: 1;
     overflow-y: auto;
     list-style: none;
-    padding: 6px 6px;
+    padding: 6px;
   }
 
   .inscription-item {
@@ -134,15 +174,8 @@
     overflow: hidden;
   }
 
-  .inscription-item:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-  }
-
-  .inscription-item.active {
-    background: var(--surface-hover);
-    color: var(--text);
-  }
+  .inscription-item:hover { background: var(--surface-hover); color: var(--text); }
+  .inscription-item.active { background: var(--surface-hover); color: var(--text); }
 
   .inscription-icon {
     font-size: 11px;
@@ -150,9 +183,7 @@
     color: var(--text-dim);
   }
 
-  .inscription-item.active .inscription-icon {
-    color: var(--accent);
-  }
+  .inscription-item.active .inscription-icon { color: var(--accent); }
 
   .inscription-title {
     flex: 1;
@@ -176,12 +207,7 @@
     gap: 8px;
   }
 
-  .empty-state p {
-    font-size: 12px;
-    color: var(--text-dim);
-    line-height: 1.5;
-    margin: 0;
-  }
+  .empty-state p { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin: 0; }
 
   .link-btn {
     background: none;
@@ -197,11 +223,7 @@
 
   .link-btn:hover { opacity: 1; }
 
-  .loading {
-    padding: 20px 14px;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
+  .loading { padding: 20px 14px; font-size: 12px; color: var(--text-dim); }
 
   .error-msg {
     margin: 8px;
