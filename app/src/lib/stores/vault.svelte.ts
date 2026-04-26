@@ -3,8 +3,12 @@ import {
   readNote,
   writeNote,
   createNote,
+  deleteNote,
+  renameAndWrite,
+  titleToFilename,
   type NoteFile,
 } from "$lib/vault";
+import { exists } from "@tauri-apps/plugin-fs";
 import { settings } from "$lib/stores/settings.svelte";
 import type { IndexedNote } from "$lib/search";
 
@@ -75,25 +79,44 @@ function createVaultStore() {
   }
 
   async function saveCurrentNote(content: string) {
-    if (!currentNote) return;
+    if (!currentNote || !settings.vaultPath) return;
     isSaving = true;
     try {
-      await writeNote(currentNote.path, content);
-      currentContent = content;
-      isDirty = false;
-
-      // Update title and search index
       const titleMatch = content.match(/^#\s+(.+)/m);
       const newTitle = titleMatch ? titleMatch[1].trim() : currentNote.title;
+      const desiredSlug = titleToFilename(newTitle);
+      const oldPath = currentNote.path;
 
-      const noteIdx = notes.findIndex((n) => n.path === currentNote!.path);
-      if (noteIdx !== -1) notes[noteIdx].title = newTitle;
+      // Rename the file if the title slug differs from the current filename
+      const shouldRename = desiredSlug !== currentNote.name;
+      const newPath = `${settings.vaultPath}/${desiredSlug}.md`;
+      const pathConflict = shouldRename && newPath !== oldPath && await exists(newPath);
 
-      const idxEntry = searchIndex.findIndex((n) => n.path === currentNote!.path);
-      if (idxEntry !== -1) {
-        searchIndex[idxEntry].content = content;
-        searchIndex[idxEntry].title = newTitle;
+      if (shouldRename && !pathConflict) {
+        await renameAndWrite(oldPath, newPath, content);
+        const renamed: NoteFile = { name: desiredSlug, path: newPath, title: newTitle };
+        currentNote = renamed;
+
+        const noteIdx = notes.findIndex((n) => n.path === oldPath);
+        if (noteIdx !== -1) notes[noteIdx] = renamed;
+
+        const idxEntry = searchIndex.findIndex((n) => n.path === oldPath);
+        if (idxEntry !== -1) searchIndex[idxEntry] = { path: newPath, title: newTitle, content };
+      } else {
+        await writeNote(oldPath, content);
+
+        const noteIdx = notes.findIndex((n) => n.path === oldPath);
+        if (noteIdx !== -1) notes[noteIdx].title = newTitle;
+
+        const idxEntry = searchIndex.findIndex((n) => n.path === oldPath);
+        if (idxEntry !== -1) {
+          searchIndex[idxEntry].content = content;
+          searchIndex[idxEntry].title = newTitle;
+        }
       }
+
+      currentContent = content;
+      isDirty = false;
     } catch (e) {
       error = e instanceof Error ? e.message : "Failed to save note";
     } finally {

@@ -4,6 +4,7 @@ import {
   readDir,
   exists,
   mkdir,
+  remove,
 } from "@tauri-apps/plugin-fs";
 
 export type NoteFile = {
@@ -84,6 +85,27 @@ export async function createNote(vaultPath: string): Promise<NoteFile> {
 }
 
 export async function deleteNote(path: string): Promise<void> {
-  const { remove } = await import("@tauri-apps/plugin-fs");
   await remove(path);
+}
+
+export function titleToFilename(title: string): string {
+  const slug = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80);
+  return slug || "untitled";
+}
+
+// Write content to newPath then delete oldPath. Caller must verify newPath doesn't exist.
+export async function renameAndWrite(
+  oldPath: string,
+  newPath: string,
+  content: string
+): Promise<void> {
+  await writeTextFile(newPath, content);
+  await remove(oldPath);
 }
