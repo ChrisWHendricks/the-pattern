@@ -9,7 +9,7 @@
   const navItems = [
     { label: "Oberon", icon: "◈", href: "/", available: true },
     { label: "Notes", icon: "◻", href: "/notes", available: true },
-    { label: "Journal", icon: "◫", href: "/journal", available: false },
+    { label: "Journal", icon: "◫", href: "/journal", available: true },
     { label: "Shadows", icon: "◑", href: "/shadows", available: false },
     { label: "Focus", icon: "◎", href: "/focus", available: true },
   ];

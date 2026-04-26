@@ -10,6 +10,7 @@ import { settings } from "$lib/stores/settings.svelte";
 import { commitments } from "$lib/stores/commitments.svelte";
 import { sessionStore } from "$lib/stores/sessions.svelte";
 import { vault } from "$lib/stores/vault.svelte";
+import { loadJournalEntry, todayDateStr } from "$lib/vault";
 
 export type Message = {
   id: string;
@@ -116,7 +117,6 @@ function createConversation() {
   }
 
   async function startMorningBriefing() {
-    // Include vault context in morning briefing too
     const vaultResults = searchNotes(
       "today priorities commitments tasks focus",
       vault.searchIndex,
@@ -125,12 +125,22 @@ function createConversation() {
     const vaultContext = buildVaultContext(vaultResults);
     const trigger = getMorningTrigger(commitments.openSummary());
 
-    // Inject vault context into the morning trigger if notes exist
-    const fullTrigger = vaultContext
-      ? `${trigger}\n\nAdditional vault context:\n${vaultContext}`
-      : trigger;
+    // Pull today's journal entry into the briefing if available
+    let journalContext = "";
+    if (settings.vaultPath) {
+      try {
+        const entry = await loadJournalEntry(settings.vaultPath, todayDateStr());
+        const stripped = entry.replace(/^#.+\n/m, "").trim();
+        if (stripped) journalContext = `\n\nToday's journal:\n${stripped}`;
+      } catch {
+        // Non-critical
+      }
+    }
 
-    await send(fullTrigger);
+    const parts = [trigger, journalContext];
+    if (vaultContext) parts.push(`\n\nAdditional vault context:\n${vaultContext}`);
+
+    await send(parts.join(""));
   }
 
   async function startNewSession() {

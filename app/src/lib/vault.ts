@@ -88,6 +88,62 @@ export async function deleteNote(path: string): Promise<void> {
   await remove(path);
 }
 
+// ── Journal ──────────────────────────────────────────────────────────────────
+
+export function todayDateStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function journalPath(vaultPath: string, dateStr: string): string {
+  return joinPath(vaultPath, "journal", `${dateStr}.md`);
+}
+
+function journalTemplate(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const friendly = d.toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+  return `# ${friendly}\n\n## Morning Check-in\n\n\n## Today's Focus\n\n\n## Notes & Thoughts\n\n\n## End of Day\n\n`;
+}
+
+export async function loadJournalEntry(vaultPath: string, dateStr: string): Promise<string> {
+  const dir = joinPath(vaultPath, "journal");
+  await ensureDir(dir);
+  const path = journalPath(vaultPath, dateStr);
+  if (!(await exists(path))) {
+    const content = journalTemplate(dateStr);
+    await writeTextFile(path, content);
+    return content;
+  }
+  return await readTextFile(path);
+}
+
+export async function saveJournalEntry(
+  vaultPath: string,
+  dateStr: string,
+  content: string
+): Promise<void> {
+  await ensureDir(joinPath(vaultPath, "journal"));
+  await writeTextFile(journalPath(vaultPath, dateStr), content);
+}
+
+export async function listJournalDates(vaultPath: string): Promise<string[]> {
+  const dir = joinPath(vaultPath, "journal");
+  await ensureDir(dir);
+  try {
+    const entries = await readDir(dir);
+    return entries
+      .filter((e) => e.isFile && /^\d{4}-\d{2}-\d{2}\.md$/.test(e.name ?? ""))
+      .map((e) => e.name.replace(".md", ""))
+      .sort()
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+// ── Slugs / rename ────────────────────────────────────────────────────────────
+
 export function titleToFilename(title: string): string {
   const slug = title
     .trim()
