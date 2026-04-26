@@ -1,3 +1,5 @@
+import { settings } from "$lib/stores/settings.svelte";
+
 function stripMarkdown(text: string): string {
   return text
     .replace(/^#{1,6}\s+/gm, "")
@@ -25,6 +27,7 @@ function createVoiceStore() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let recognition: any = null;
+  let currentAudio: HTMLAudioElement | null = null;
 
   function startListening(onFinal: (text: string) => void) {
     if (!supported || isListening) return;
@@ -55,15 +58,8 @@ function createVoiceStore() {
       }
     };
 
-    recognition.onend = () => {
-      isListening = false;
-      interim = "";
-    };
-
-    recognition.onerror = () => {
-      isListening = false;
-      interim = "";
-    };
+    recognition.onend = () => { isListening = false; interim = ""; };
+    recognition.onerror = () => { isListening = false; interim = ""; };
 
     recognition.start();
     isListening = true;
@@ -75,22 +71,22 @@ function createVoiceStore() {
     interim = "";
   }
 
-  function speak(text: string) {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
+  function speakSystem(text: string) {
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
 
-    const clean = stripMarkdown(text);
-    if (!clean) return;
-
-    const utterance = new SpeechSynthesisUtterance(clean);
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.92;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
     const preferred =
+      voices.find((v) => v.name === "Ava (Premium)") ??
+      voices.find((v) => v.name === "Evan (Premium)") ??
+      voices.find((v) => v.name === "Ava (Enhanced)") ??
+      voices.find((v) => v.name === "Evan (Enhanced)") ??
       voices.find((v) => v.name === "Samantha") ??
-      voices.find((v) => v.name.includes("Karen")) ??
       voices.find((v) => v.lang.startsWith("en-")) ??
       null;
     if (preferred) utterance.voice = preferred;
@@ -102,7 +98,85 @@ function createVoiceStore() {
     window.speechSynthesis.speak(utterance);
   }
 
+  async function fetchElevenLabs(text: string): Promise<Blob> {
+    const voiceId = settings.elevenLabsVoiceId || "21m00Tcm4TlvDq8ikWAM";
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": settings.elevenLabsKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_turbo_v2_5",
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      }),
+    });
+    if (!res.ok) throw new Error(`ElevenLabs ${res.status}`);
+    return res.blob();
+  }
+
+  async function fetchOpenAI(text: string): Promise<Blob> {
+    const res = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${settings.openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "tts-1",
+        input: text,
+        voice: settings.openaiVoice || "nova",
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI TTS ${res.status}`);
+    return res.blob();
+  }
+
+  function playBlob(blob: Blob) {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudio = audio;
+    isSpeaking = true;
+    audio.onended = () => { isSpeaking = false; URL.revokeObjectURL(url); currentAudio = null; };
+    audio.onerror = () => { isSpeaking = false; URL.revokeObjectURL(url); currentAudio = null; };
+    audio.play().catch(() => { isSpeaking = false; URL.revokeObjectURL(url); currentAudio = null; });
+  }
+
+  async function speak(text: string) {
+    if (typeof window === "undefined") return;
+    const clean = stripMarkdown(text);
+    if (!clean) return;
+
+    stopSpeaking();
+
+    const provider = settings.ttsProvider;
+
+    if (provider === "elevenlabs" && settings.elevenLabsKey) {
+      try {
+        playBlob(await fetchElevenLabs(clean));
+      } catch (e) {
+        console.error("ElevenLabs TTS failed, falling back to system:", e);
+        speakSystem(clean);
+      }
+      return;
+    }
+
+    if (provider === "openai" && settings.openaiKey) {
+      try {
+        playBlob(await fetchOpenAI(clean));
+      } catch (e) {
+        console.error("OpenAI TTS failed, falling back to system:", e);
+        speakSystem(clean);
+      }
+      return;
+    }
+
+    speakSystem(clean);
+  }
+
   function stopSpeaking() {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
     window.speechSynthesis?.cancel();
     isSpeaking = false;
   }
