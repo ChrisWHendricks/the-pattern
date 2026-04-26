@@ -1,10 +1,14 @@
 #![allow(unexpected_cfgs)]
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 #[cfg(target_os = "macos")]
 use std::os::raw::c_void;
+
+/// Set to true by stop_speaking_native; polled by speak_text loop to abort.
+static STOP_SPEAKING: AtomicBool = AtomicBool::new(false);
 
 /// ObjC blocks start with: isa*, flags(i32), reserved(i32), invoke fn*
 /// We read the invoke pointer and call it directly.
@@ -29,29 +33,110 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-/// Speak text using macOS `say` command. Awaits completion so the JS caller
-/// can track isSpeaking state accurately.
+/// Walk NSSpeechSynthesizer.availableVoices and return the identifier for the
+/// given friendly name (case-insensitive). Returns None if not found.
+#[cfg(target_os = "macos")]
+unsafe fn find_voice_id(name: &str) -> Option<String> {
+    use objc::{class, msg_send, sel, sel_impl};
+    let synth_class = class!(NSSpeechSynthesizer);
+    let voices: *mut objc::runtime::Object = msg_send![synth_class, availableVoices];
+    let count: usize = msg_send![voices, count];
+    for i in 0..count {
+        let vid: *mut objc::runtime::Object = msg_send![voices, objectAtIndex: i];
+        let attrs: *mut objc::runtime::Object = msg_send![synth_class, attributesForVoice: vid];
+        let name_key: *mut objc::runtime::Object = {
+            let s = std::ffi::CStr::from_ptr(b"VoiceName\0".as_ptr() as _);
+            msg_send![class!(NSString), stringWithUTF8String: s.as_ptr()]
+        };
+        let name_obj: *mut objc::runtime::Object = msg_send![attrs, objectForKey: name_key];
+        if name_obj.is_null() { continue; }
+        let utf8: *const std::os::raw::c_char = msg_send![name_obj, UTF8String];
+        if utf8.is_null() { continue; }
+        let vname = std::ffi::CStr::from_ptr(utf8).to_string_lossy();
+        if vname.eq_ignore_ascii_case(name) {
+            let id_utf8: *const std::os::raw::c_char = msg_send![vid, UTF8String];
+            if !id_utf8.is_null() {
+                return Some(std::ffi::CStr::from_ptr(id_utf8).to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
+}
+
+/// Speak text using NSSpeechSynthesizer (in-process, all voices including Premium).
+/// Awaits completion so the JS caller can track isSpeaking state accurately.
 #[tauri::command]
 async fn speak_text(text: String, voice: String) {
-    tokio::task::spawn_blocking(move || {
-        let mut cmd = std::process::Command::new("say");
-        if !voice.is_empty() {
-            cmd.arg("-v").arg(&voice);
+    STOP_SPEAKING.store(false, Ordering::SeqCst);
+
+    #[cfg(target_os = "macos")]
+    tokio::task::spawn_blocking(move || unsafe {
+        use objc::{class, msg_send, sel, sel_impl};
+
+        let pool: *mut objc::runtime::Object = msg_send![class!(NSAutoreleasePool), new];
+
+        let synth_class = class!(NSSpeechSynthesizer);
+
+        let synth: *mut objc::runtime::Object = if !voice.is_empty() {
+            if let Some(vid_str) = find_voice_id(&voice) {
+                let c_vid = std::ffi::CString::new(vid_str).unwrap_or_default();
+                let ns_vid: *mut objc::runtime::Object =
+                    msg_send![class!(NSString), stringWithUTF8String: c_vid.as_ptr()];
+                let s: *mut objc::runtime::Object = msg_send![synth_class, alloc];
+                msg_send![s, initWithVoice: ns_vid]
+            } else {
+                msg_send![synth_class, new]
+            }
+        } else {
+            msg_send![synth_class, new]
+        };
+
+        if synth.is_null() {
+            let _: () = msg_send![pool, release];
+            return;
         }
-        cmd.arg("--").arg(&text);
-        cmd.status().ok();
+
+        let clean = text.replace('\0', "");
+        let c_text = std::ffi::CString::new(clean).unwrap_or_default();
+        let ns_text: *mut objc::runtime::Object =
+            msg_send![class!(NSString), stringWithUTF8String: c_text.as_ptr()];
+
+        let started: bool = msg_send![synth, startSpeakingString: ns_text];
+        if !started {
+            let _: () = msg_send![synth, release];
+            let _: () = msg_send![pool, release];
+            return;
+        }
+
+        // Drive the thread's RunLoop so NSSpeechSynthesizer can deliver audio callbacks.
+        let run_loop: *mut objc::runtime::Object = msg_send![class!(NSRunLoop), currentRunLoop];
+        loop {
+            let date: *mut objc::runtime::Object =
+                msg_send![class!(NSDate), dateWithTimeIntervalSinceNow: 0.05f64];
+            let _: () = msg_send![run_loop, runUntilDate: date];
+
+            if STOP_SPEAKING.load(Ordering::Relaxed) {
+                let _: () = msg_send![synth, stopSpeaking];
+                break;
+            }
+            let is_speaking: bool = msg_send![synth, isSpeaking];
+            if !is_speaking { break; }
+        }
+
+        let _: () = msg_send![synth, release];
+        let _: () = msg_send![pool, release];
     })
     .await
     .ok();
+
+    #[cfg(not(target_os = "macos"))]
+    let _ = (text, voice);
 }
 
-/// Kill any running `say` process to stop mid-speech.
+/// Signal the speak_text loop to stop at its next poll tick.
 #[tauri::command]
 fn stop_speaking_native() {
-    std::process::Command::new("pkill")
-        .args(["-x", "say"])
-        .spawn()
-        .ok();
+    STOP_SPEAKING.store(true, Ordering::SeqCst);
 }
 
 /// Returns all installed English voices via NSSpeechSynthesizer.
@@ -67,8 +152,6 @@ fn list_system_voices() -> Vec<String> {
         let mut names = Vec::new();
         for i in 0..count {
             let voice_id: *mut objc::runtime::Object = msg_send![voices, objectAtIndex: i];
-            // voice_id is e.g. "com.apple.speech.synthesis.voice.Ava.premium"
-            // Get the human-readable name via VoiceAttributes
             let attrs: *mut objc::runtime::Object =
                 msg_send![synth_class, attributesForVoice: voice_id];
             let name_key: *mut objc::runtime::Object = {
@@ -76,17 +159,10 @@ fn list_system_voices() -> Vec<String> {
                 msg_send![class!(NSString), stringWithUTF8String: s.as_ptr()]
             };
             let name_obj: *mut objc::runtime::Object = msg_send![attrs, objectForKey: name_key];
-            if name_obj.is_null() {
-                continue;
-            }
+            if name_obj.is_null() { continue; }
             let utf8: *const std::os::raw::c_char = msg_send![name_obj, UTF8String];
-            if utf8.is_null() {
-                continue;
-            }
-            let name = std::ffi::CStr::from_ptr(utf8)
-                .to_string_lossy()
-                .into_owned();
-            // Filter to English voices
+            if utf8.is_null() { continue; }
+            let name = std::ffi::CStr::from_ptr(utf8).to_string_lossy().into_owned();
             let locale_key: *mut objc::runtime::Object = {
                 let s = std::ffi::CStr::from_ptr(b"VoiceLocaleIdentifier\0".as_ptr() as _);
                 msg_send![class!(NSString), stringWithUTF8String: s.as_ptr()]
@@ -94,8 +170,7 @@ fn list_system_voices() -> Vec<String> {
             let locale_obj: *mut objc::runtime::Object =
                 msg_send![attrs, objectForKey: locale_key];
             if !locale_obj.is_null() {
-                let locale_utf8: *const std::os::raw::c_char =
-                    msg_send![locale_obj, UTF8String];
+                let locale_utf8: *const std::os::raw::c_char = msg_send![locale_obj, UTF8String];
                 if !locale_utf8.is_null() {
                     let locale = std::ffi::CStr::from_ptr(locale_utf8).to_string_lossy();
                     if locale.starts_with("en") {
@@ -191,7 +266,12 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, list_system_voices, speak_text, stop_speaking_native])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            list_system_voices,
+            speak_text,
+            stop_speaking_native
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

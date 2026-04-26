@@ -81,10 +81,9 @@ function createVoiceStore() {
     const voice = settings.systemVoiceName || "Ava";
     isSpeaking = true;
     try {
-      // invoke awaits until `say` finishes, so isSpeaking tracks correctly.
-      // Uses the macOS `say` command — works with all installed voices including Premium.
       await invoke("speak_text", { text, voice });
-    } catch {
+    } catch (e) {
+      console.error("[voice] speak_text invoke failed, falling back to Web Speech:", e);
       // Tauri not available (e.g. browser dev) — fall back to Web Speech API
       window.speechSynthesis?.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
