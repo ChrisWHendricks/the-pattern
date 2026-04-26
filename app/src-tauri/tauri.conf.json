@@ -46,9 +46,7 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "The Pattern uses your microphone for voice input to Oberon."
-      }
+      "infoPlist": "Info.plist"
     }
   }
 }
