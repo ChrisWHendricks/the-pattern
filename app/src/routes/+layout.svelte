@@ -1,9 +1,48 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import SettingsDialog from "$lib/components/SettingsDialog.svelte";
   import { settings } from "$lib/stores/settings.svelte";
+  import { commitments } from "$lib/stores/commitments.svelte";
+  import { vault } from "$lib/stores/vault.svelte";
+  import { listen } from "@tauri-apps/api/event";
 
   let { children } = $props();
+
+  let captureToast = $state<string | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showToast(msg: string) {
+    captureToast = msg;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { captureToast = null; }, 3000);
+  }
+
+  onMount(() => {
+    const unlisten = listen<{ text: string; mode: string }>("quick-capture", async (event) => {
+      const { text, mode } = event.payload;
+      if (mode === "note") {
+        if (settings.vaultPath) {
+          try {
+            await vault.newNote();
+            // Overwrite the blank note with the captured text
+            if (vault.currentNote) {
+              await vault.saveCurrentNote(`# ${text.split("\n")[0]}\n\n${text}`);
+            }
+            showToast(`Note created: "${text.slice(0, 40)}"`);
+          } catch {
+            showToast("Failed to create note");
+          }
+        } else {
+          showToast("Set a vault path in Settings to create notes");
+        }
+      } else {
+        commitments.add({ text });
+        showToast(`Commitment captured: "${text.slice(0, 40)}"`);
+      }
+    });
+    return () => unlisten.then((fn) => fn());
+  });
 </script>
 
 <div class="app-shell">
@@ -15,6 +54,10 @@
     <SettingsDialog />
   {/if}
 </div>
+
+{#if captureToast}
+  <div class="capture-toast">{captureToast}</div>
+{/if}
 
 <style>
   :global(*) {
@@ -91,5 +134,22 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  .capture-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 12px;
+    z-index: 300;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
   }
 </style>
