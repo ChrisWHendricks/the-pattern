@@ -2,13 +2,25 @@
   import { settings } from "$lib/stores/settings.svelte";
   import { MODELS, type ModelKey } from "$lib/claude";
 
+  import { homeDir } from "@tauri-apps/api/path";
+
   let draftKey = $state(settings.apiKey);
   let draftModel = $state<ModelKey>(settings.model);
+  let draftVaultPath = $state(settings.vaultPath);
   let showKey = $state(false);
+
+  // Populate default vault path if empty
+  $effect(() => {
+    if (!draftVaultPath) {
+      homeDir().then((home) => {
+        draftVaultPath = `${home}Documents/ThePattern/notes`;
+      });
+    }
+  });
 
   function save() {
     if (!draftKey.trim()) return;
-    settings.save(draftKey.trim(), draftModel);
+    settings.save(draftKey.trim(), draftModel, draftVaultPath.trim());
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -78,6 +90,20 @@
         {/each}
       </div>
       <div class="field-hint">Haiku is recommended — Sonnet is available for complex tasks anytime.</div>
+    </div>
+
+    <div class="field">
+      <label for="vault-path">Notes Vault Path</label>
+      <input
+        id="vault-path"
+        type="text"
+        placeholder="~/Documents/ThePattern/notes"
+        bind:value={draftVaultPath}
+        spellcheck={false}
+      />
+      <div class="field-hint">
+        Folder where your markdown notes are stored. Use your Google Drive path to sync across devices.
+      </div>
     </div>
 
     <div class="dialog-actions">

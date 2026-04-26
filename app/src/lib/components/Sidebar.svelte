@@ -1,16 +1,23 @@
 <script lang="ts">
+  import { page } from "$app/stores";
+  import { goto } from "$app/navigation";
   import { settings } from "$lib/stores/settings.svelte";
   import { conversation } from "$lib/stores/conversation.svelte";
   import { commitments } from "$lib/stores/commitments.svelte";
   import CommitmentList from "./CommitmentList.svelte";
 
   const navItems = [
-    { label: "Oberon", icon: "◈", active: true, available: true },
-    { label: "Notes", icon: "◻", active: false, available: false },
-    { label: "Journal", icon: "◫", active: false, available: false },
-    { label: "Shadows", icon: "◑", active: false, available: false },
-    { label: "Focus", icon: "◎", active: false, available: false },
+    { label: "Oberon", icon: "◈", href: "/", available: true },
+    { label: "Notes", icon: "◻", href: "/notes", available: true },
+    { label: "Journal", icon: "◫", href: "/journal", available: false },
+    { label: "Shadows", icon: "◑", href: "/shadows", available: false },
+    { label: "Focus", icon: "◎", href: "/focus", available: false },
   ];
+
+  function isActive(href: string) {
+    if (href === "/") return $page.url.pathname === "/";
+    return $page.url.pathname.startsWith(href);
+  }
 </script>
 
 <aside class="sidebar">
@@ -26,9 +33,10 @@
     {#each navItems as item}
       <button
         class="nav-item"
-        class:active={item.active}
+        class:active={isActive(item.href)}
         class:disabled={!item.available}
         disabled={!item.available}
+        onclick={() => item.available && goto(item.href)}
         title={item.available ? item.label : `${item.label} — coming soon`}
       >
         <span class="nav-icon">{item.icon}</span>
