@@ -6,6 +6,7 @@ export const MODELS = {
 } as const;
 
 export type ModelKey = keyof typeof MODELS;
+export type OberonMode = "coach" | "assistant";
 
 const BASE_SYSTEM_PROMPT = `You are Oberon, an AI companion integrated into The Pattern — a personal knowledge and productivity system built for Chris.
 
@@ -28,13 +29,38 @@ Your roles:
 Tone: Direct. Warm but not soft. You have opinions. Push back when warranted.
 Format: Use markdown. Keep responses focused — don't pad. One clear thing at a time.
 
-Your interface capabilities:
-- Voice input: there is a microphone button in the chat UI. When Chris uses it, his speech is transcribed and sent as a message. (macOS mic permission must be granted.)
-- Voice output (TTS): you speak your responses aloud after streaming finishes. The provider (macOS system voice, ElevenLabs, or OpenAI TTS) is configured in Settings → Voice. If TTS is off, responses are text-only.
-- These are frontend features — you won't see any special marker in the message when voice is used.`;
+The Pattern app capabilities you can reference and invoke:
+- **Vault**: personal knowledge base of Inscriptions (markdown notes) and Chronicles (daily journal entries)
+- **Shadows**: named collections of Inscriptions — like notebooks or project folders
+- **Quick Capture**: global hotkey (Cmd+Shift+K) captures a thought from anywhere on the system
+- **Focus Mode**: distraction-free Pomodoro work session with task breakdown
+- **Commitments**: tracks verbal promises Chris makes to people
+- **Issue Tracker**: defects and feature requests for The Pattern app itself
+- **Voice I/O**: microphone for voice input, TTS for voice output (configured in Settings → Voice)
 
-export function buildSystemPrompt(memories: string[] = [], vaultContext = ""): string {
+Actions you can perform — use tool calls, never say you "can't do" these:
+- Create a Shadow, list Shadows, assign an Inscription to a Shadow
+- Create a defect or feature request, list issues, update an issue's status
+
+Your interface capabilities:
+- Voice input: microphone button in the chat UI transcribes speech (macOS mic permission must be granted)
+- Voice output (TTS): responses spoken aloud after streaming; provider configured in Settings → Voice`;
+
+const ASSISTANT_MODE_SECTION = `
+
+---
+**You are currently in Assistant mode.** Answer questions directly and helpfully — like a knowledgeable colleague, not an accountability coach. Do not volunteer coaching, push back on task framing, or redirect to "what do you need this for." Commitment extraction is paused. Just help.`;
+
+export function buildSystemPrompt(
+  memories: string[] = [],
+  vaultContext = "",
+  mode: OberonMode = "coach"
+): string {
   let prompt = BASE_SYSTEM_PROMPT;
+
+  if (mode === "assistant") {
+    prompt += ASSISTANT_MODE_SECTION;
+  }
 
   if (memories.length > 0) {
     prompt += `\n\n---\nRecent session memories (maintain continuity — don't recite, just use as context):\n${memories.join("\n")}`;
@@ -47,35 +73,185 @@ export function buildSystemPrompt(memories: string[] = [], vaultContext = ""): s
   return prompt;
 }
 
+// ── Tool definitions ──────────────────────────────────────────────────────────
+
+export const APP_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "create_shadow",
+    description: "Create a new Shadow (collection/notebook) in the user's vault.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string", description: "Name for the new Shadow" },
+        description: { type: "string", description: "Optional description" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "list_shadows",
+    description: "List all existing Shadows with their names and inscription counts.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "add_inscription_to_shadow",
+    description: "Assign an existing Inscription (note) to a Shadow by fuzzy-matching their names.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        shadowName: { type: "string", description: "Name or partial name of the Shadow" },
+        inscriptionTitle: { type: "string", description: "Title or partial title of the Inscription to add" },
+      },
+      required: ["shadowName", "inscriptionTitle"],
+    },
+  },
+  {
+    name: "create_issue",
+    description: "Log a defect or feature request for The Pattern app itself.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        type: { type: "string", enum: ["defect", "feature"], description: "Bug or feature request" },
+        title: { type: "string", description: "Short title" },
+        description: { type: "string", description: "Optional additional detail" },
+      },
+      required: ["type", "title"],
+    },
+  },
+  {
+    name: "list_issues",
+    description: "List defects and/or feature requests, optionally filtered by type or status.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        type: { type: "string", enum: ["defect", "feature"], description: "Filter by type (omit for all)" },
+        status: { type: "string", enum: ["open", "in-progress", "done"], description: "Filter by status (omit for all)" },
+      },
+    },
+  },
+  {
+    name: "update_issue_status",
+    description: "Update the status of an issue by fuzzy-matching its title.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: { type: "string", description: "Title or partial title of the issue to update" },
+        status: { type: "string", enum: ["open", "in-progress", "done"], description: "New status" },
+      },
+      required: ["title", "status"],
+    },
+  },
+];
+
+// ── Streaming ─────────────────────────────────────────────────────────────────
+
 export function createClient(apiKey: string): Anthropic {
   return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 }
+
+type CollectedBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
 
 export async function* streamChat(
   apiKey: string,
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   model: ModelKey = "haiku",
   memories: string[] = [],
-  vaultContext = ""
+  vaultContext = "",
+  options?: {
+    mode?: OberonMode;
+    tools?: Anthropic.Tool[];
+    onToolCall?: (name: string, input: Record<string, unknown>) => Promise<string>;
+    onToolStart?: () => void;
+    onToolEnd?: () => void;
+  }
 ): AsyncGenerator<string> {
   const client = createClient(apiKey);
+  const systemPrompt = buildSystemPrompt(memories, vaultContext, options?.mode ?? "coach");
+  const hasTools = (options?.tools?.length ?? 0) > 0;
 
+  // Phase 1: stream (yields text immediately; also collects blocks for tool round-trip)
   const stream = client.messages.stream({
     model: MODELS[model],
     max_tokens: 1024,
-    system: buildSystemPrompt(memories, vaultContext),
-    messages,
+    system: systemPrompt,
+    messages: messages as Anthropic.Messages.MessageParam[],
+    ...(hasTools ? { tools: options!.tools } : {}),
   });
 
-  for await (const chunk of stream) {
-    if (
-      chunk.type === "content_block_delta" &&
-      chunk.delta.type === "text_delta"
-    ) {
+  const collectedBlocks: CollectedBlock[] = [];
+  let blockIndex = -1;
+  let toolInputJson = "";
+
+  for await (const event of stream) {
+    if (event.type === "content_block_start") {
+      blockIndex++;
+      toolInputJson = "";
+      if (event.content_block.type === "text") {
+        collectedBlocks.push({ type: "text", text: "" });
+      } else if (event.content_block.type === "tool_use") {
+        collectedBlocks.push({
+          type: "tool_use",
+          id: event.content_block.id,
+          name: event.content_block.name,
+          input: {},
+        });
+      }
+    } else if (event.type === "content_block_delta") {
+      if (event.delta.type === "text_delta") {
+        yield event.delta.text;
+        const block = collectedBlocks[blockIndex];
+        if (block?.type === "text") block.text += event.delta.text;
+      } else if (event.delta.type === "input_json_delta") {
+        toolInputJson += event.delta.partial_json;
+      }
+    } else if (event.type === "content_block_stop") {
+      const block = collectedBlocks[blockIndex];
+      if (block?.type === "tool_use" && toolInputJson) {
+        try { block.input = JSON.parse(toolInputJson); } catch { /* keep {} */ }
+      }
+    }
+  }
+
+  const finalMsg = await stream.finalMessage();
+
+  if (finalMsg.stop_reason !== "tool_use" || !options?.onToolCall) return;
+
+  // Tool round-trip: execute tools, then stream Phase 2 response
+  options.onToolStart?.();
+
+  const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
+  for (const block of collectedBlocks) {
+    if (block.type === "tool_use") {
+      const result = await options.onToolCall(block.name, block.input);
+      toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
+    }
+  }
+
+  options.onToolEnd?.();
+
+  const phase2Messages: Anthropic.Messages.MessageParam[] = [
+    ...(messages as Anthropic.Messages.MessageParam[]),
+    { role: "assistant", content: collectedBlocks as Anthropic.Messages.ContentBlock[] },
+    { role: "user", content: toolResults },
+  ];
+
+  const stream2 = client.messages.stream({
+    model: MODELS[model],
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: phase2Messages,
+  });
+
+  for await (const chunk of stream2) {
+    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
       yield chunk.delta.text;
     }
   }
 }
+
+// ── Session utilities ─────────────────────────────────────────────────────────
 
 export async function generateSessionSummary(
   apiKey: string,

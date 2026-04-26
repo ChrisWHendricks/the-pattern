@@ -81,6 +81,21 @@
       </button>
     </div>
   {:else}
+    <div class="chat-header">
+      <div class="mode-toggle">
+        <button
+          class:active={conversation.mode === "coach"}
+          onclick={() => conversation.setMode("coach")}
+          title="ADHD coaching, commitment tracking, proactive guidance"
+        >Coach</button>
+        <button
+          class:active={conversation.mode === "assistant"}
+          onclick={() => conversation.setMode("assistant")}
+          title="Direct answers without coaching pressure"
+        >Assistant</button>
+      </div>
+    </div>
+
     <div class="message-list" bind:this={listEl}>
       <div class="messages-inner">
         {#each conversation.messages as message (message.id)}
@@ -165,7 +180,9 @@
 
       <div class="input-hint">
         <span class="hint-text">
-          {#if conversation.isSearching}
+          {#if conversation.isExecutingTool}
+            Working on that…
+          {:else if conversation.isSearching}
             Searching vault…
           {:else if voice.isListening}
             {voice.interim || "Listening… speak now"}
@@ -235,6 +252,44 @@
   }
 
   .cta-btn:hover { opacity: 0.9; }
+
+  /* ── Chat header / mode toggle ────────────────────────────────── */
+  .chat-header {
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  .mode-toggle {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .mode-toggle button {
+    padding: 3px 10px;
+    font-size: 10px;
+    font-family: var(--font-sans);
+    letter-spacing: 0.04em;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    text-transform: uppercase;
+  }
+
+  .mode-toggle button:hover { color: var(--text-muted); }
+
+  .mode-toggle button.active {
+    background: var(--oberon-dim);
+    color: var(--oberon);
+  }
 
   .message-list {
     flex: 1;
