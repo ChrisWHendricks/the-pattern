@@ -6,8 +6,11 @@
   import { commitments } from "$lib/stores/commitments.svelte";
   import { vault } from "$lib/stores/vault.svelte";
   import { listen } from "@tauri-apps/api/event";
+  import { page } from "$app/stores";
 
   let { children } = $props();
+
+  let isCapture = $derived($page.url.pathname === "/capture");
 
   let captureToast = $state<string | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -45,18 +48,22 @@
   });
 </script>
 
-<div class="app-shell">
-  <Sidebar />
-  <div class="main">
-    {@render children()}
+{#if isCapture}
+  {@render children()}
+{:else}
+  <div class="app-shell">
+    <Sidebar />
+    <div class="main">
+      {@render children()}
+    </div>
+    {#if settings.showSettingsDialog || !settings.hasApiKey}
+      <SettingsDialog />
+    {/if}
   </div>
-  {#if settings.showSettingsDialog || !settings.hasApiKey}
-    <SettingsDialog />
-  {/if}
-</div>
 
-{#if captureToast}
-  <div class="capture-toast">{captureToast}</div>
+  {#if captureToast}
+    <div class="capture-toast">{captureToast}</div>
+  {/if}
 {/if}
 
 <style>
