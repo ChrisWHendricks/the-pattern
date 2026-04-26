@@ -3,6 +3,7 @@
   import { settings, type TtsProvider } from "$lib/stores/settings.svelte";
   import { MODELS, type ModelKey } from "$lib/claude";
   import { homeDir } from "@tauri-apps/api/path";
+  import { invoke } from "@tauri-apps/api/core";
 
   type Tab = "oberon" | "vault" | "voice";
 
@@ -19,7 +20,7 @@
   let draftOpenaiKey = $state(settings.openaiKey);
   let draftOpenaiVoice = $state(settings.openaiVoice);
   let draftSystemVoiceName = $state(settings.systemVoiceName);
-  let systemVoices = $state<SpeechSynthesisVoice[]>([]);
+  let systemVoiceNames = $state<string[]>([]);
   let showKey = $state(false);
   let showElKey = $state(false);
   let showOaiKey = $state(false);
@@ -32,12 +33,6 @@
     { id: "voice",  icon: "◎", label: "Voice" },
   ];
 
-  function loadVoices() {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    const all = window.speechSynthesis.getVoices();
-    systemVoices = all.filter((v) => v.lang.startsWith("en"));
-  }
-
   onMount(() => {
     if (!draftVaultPath) {
       homeDir().then((home) => {
@@ -45,9 +40,15 @@
       });
     }
     if (!settings.hasApiKey) tab = "oberon";
-    loadVoices();
-    window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
-    return () => window.speechSynthesis?.removeEventListener("voiceschanged", loadVoices);
+    // Use the Tauri command which queries NSSpeechSynthesizer directly,
+    // returning all installed voices including Premium ones.
+    invoke<string[]>("list_system_voices")
+      .then((names) => { systemVoiceNames = names; })
+      .catch(() => {
+        // Fallback to Web Speech API (won't include Premium voices)
+        const all = window.speechSynthesis?.getVoices() ?? [];
+        systemVoiceNames = all.filter((v) => v.lang.startsWith("en")).map((v) => v.name);
+      });
   });
 
   function save() {
@@ -257,13 +258,10 @@
                 spellcheck={false}
               />
               <datalist id="voice-datalist">
-                {#each systemVoices as v}
-                  <option value={v.name}></option>
+                {#each systemVoiceNames as name}
+                  <option value={name}></option>
                 {/each}
               </datalist>
-              {#if systemVoices.length === 0}
-                <p class="block-desc" style="margin-top:6px">Suggestions load after the first TTS playback.</p>
-              {/if}
             </div>
 
           {:else if draftTtsProvider === "elevenlabs"}
