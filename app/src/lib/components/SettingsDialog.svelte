@@ -8,6 +8,7 @@
   let draftModel = $state<ModelKey>(settings.model);
   let draftVaultPath = $state(settings.vaultPath);
   let draftAutosave = $state(settings.autosave);
+  let draftTts = $state(settings.ttsEnabled);
   let showKey = $state(false);
 
   // Only pre-fill the default path once on open, never re-fill when cleared
@@ -21,7 +22,7 @@
 
   function save() {
     if (!draftKey.trim()) return;
-    settings.save(draftKey.trim(), draftModel, draftVaultPath.trim(), draftAutosave);
+    settings.save(draftKey.trim(), draftModel, draftVaultPath.trim(), draftAutosave, draftTts);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -121,6 +122,25 @@
           role="switch"
           aria-checked={draftAutosave}
           aria-label="Toggle autosave"
+        >
+          <span class="toggle-thumb"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="field toggle-field">
+      <div class="toggle-row">
+        <div>
+          <p class="field-label">Oberon reads responses aloud</p>
+          <div class="field-hint">Auto-play TTS after each response. Uses your system voice (macOS: Samantha).</div>
+        </div>
+        <button
+          class="toggle-btn"
+          class:on={draftTts}
+          onclick={() => (draftTts = !draftTts)}
+          role="switch"
+          aria-checked={draftTts}
+          aria-label="Toggle text-to-speech"
         >
           <span class="toggle-thumb"></span>
         </button>

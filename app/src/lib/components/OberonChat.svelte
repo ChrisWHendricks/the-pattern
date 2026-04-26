@@ -2,6 +2,7 @@
   import { conversation } from "$lib/stores/conversation.svelte";
   import { settings } from "$lib/stores/settings.svelte";
   import { vault } from "$lib/stores/vault.svelte";
+  import { voice } from "$lib/voice.svelte";
   import MessageBubble from "./MessageBubble.svelte";
 
   let input = $state("");
@@ -9,7 +10,6 @@
   let inputEl = $state<HTMLTextAreaElement | null>(null);
 
   $effect(() => {
-    // Auto-scroll when messages or streaming content changes
     conversation.messages;
     conversation.streamingContent;
     if (listEl) {
@@ -20,16 +20,27 @@
   });
 
   $effect(() => {
-    // Auto-start morning briefing on first load if API key exists
     if (settings.hasApiKey && conversation.isEmpty) {
       conversation.startMorningBriefing();
     }
+  });
+
+  // Speak Oberon's response when streaming finishes
+  let prevStreaming = false;
+  $effect(() => {
+    const streaming = conversation.isStreaming;
+    if (prevStreaming && !streaming && settings.ttsEnabled) {
+      const last = [...conversation.messages].reverse().find((m) => m.role === "assistant");
+      if (last) voice.speak(last.content);
+    }
+    prevStreaming = streaming;
   });
 
   async function send() {
     const text = input.trim();
     if (!text || conversation.isStreaming) return;
     input = "";
+    autoResize(inputEl!);
     await conversation.send(text);
     inputEl?.focus();
   }
@@ -42,8 +53,20 @@
   }
 
   function autoResize(el: HTMLTextAreaElement) {
+    if (!el) return;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  }
+
+  function toggleMic() {
+    if (voice.isListening) {
+      voice.stopListening();
+    } else {
+      voice.startListening((text) => {
+        input = text;
+        send();
+      });
+    }
   }
 </script>
 
@@ -76,9 +99,7 @@
         {/if}
 
         {#if conversation.error}
-          <div class="error-msg">
-            ⚠ {conversation.error}
-          </div>
+          <div class="error-msg">⚠ {conversation.error}</div>
         {/if}
 
         {#if conversation.isEmpty && !conversation.isStreaming}
@@ -91,24 +112,43 @@
         {/if}
 
         {#if conversation.isSummarizing}
-          <div class="system-notice">
-            Saving session memory…
-          </div>
+          <div class="system-notice">Saving session memory…</div>
         {/if}
       </div>
     </div>
 
     <div class="input-area">
-      <div class="input-wrap">
+      <div class="input-wrap" class:listening={voice.isListening}>
         <textarea
           bind:this={inputEl}
           bind:value={input}
           onkeydown={handleKeydown}
           oninput={(e) => autoResize(e.currentTarget)}
-          placeholder={conversation.isStreaming ? "Oberon is thinking…" : "Talk to Oberon…"}
-          disabled={conversation.isStreaming}
+          placeholder={voice.isListening
+            ? voice.interim || "Listening…"
+            : conversation.isStreaming
+            ? "Oberon is thinking…"
+            : "Talk to Oberon…"}
+          disabled={conversation.isStreaming || voice.isListening}
           rows={1}
         ></textarea>
+
+        {#if voice.supported}
+          <button
+            class="mic-btn"
+            class:active={voice.isListening}
+            onclick={toggleMic}
+            title={voice.isListening ? "Stop listening" : "Voice input"}
+            aria-label={voice.isListening ? "Stop voice input" : "Start voice input"}
+          >
+            {#if voice.isListening}
+              <span class="mic-pulse">⏹</span>
+            {:else}
+              🎤
+            {/if}
+          </button>
+        {/if}
+
         <button
           class="send-btn"
           onclick={send}
@@ -122,15 +162,28 @@
           {/if}
         </button>
       </div>
+
       <div class="input-hint">
-        {#if conversation.isSearching}
-          Searching vault…
-        {:else}
-          Enter to send · Shift+Enter for newline
-          {#if vault.indexSize > 0}
-            · {vault.indexSize} notes indexed
+        <span class="hint-text">
+          {#if conversation.isSearching}
+            Searching vault…
+          {:else if voice.isListening}
+            {voice.interim || "Listening… speak now"}
+          {:else}
+            Enter to send · Shift+Enter for newline
+            {#if vault.indexSize > 0}· {vault.indexSize} inscriptions indexed{/if}
           {/if}
-        {/if}
+        </span>
+
+        <div class="hint-actions">
+          {#if voice.isSpeaking}
+            <button class="tts-btn speaking" onclick={() => voice.stopSpeaking()} title="Stop speaking">
+              🔊
+            </button>
+          {:else if settings.ttsEnabled}
+            <span class="tts-indicator" title="Read-aloud on">🔊</span>
+          {/if}
+        </div>
       </div>
     </div>
   {/if}
@@ -156,18 +209,9 @@
     text-align: center;
   }
 
-  .empty-mark {
-    font-size: 48px;
-    color: var(--accent);
-    opacity: 0.6;
-  }
+  .empty-mark { font-size: 48px; color: var(--accent); opacity: 0.6; }
 
-  .empty-state h2 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--text);
-  }
+  .empty-state h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--text); }
 
   .empty-state p {
     margin: 0;
@@ -190,9 +234,7 @@
     transition: opacity 0.15s;
   }
 
-  .cta-btn:hover {
-    opacity: 0.9;
-  }
+  .cta-btn:hover { opacity: 0.9; }
 
   .message-list {
     flex: 1;
@@ -217,11 +259,7 @@
     padding: 10px 0;
   }
 
-  .loading-state p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-muted);
-  }
+  .loading-state p { margin: 0; font-size: 13px; color: var(--text-muted); }
 
   .dot-pulse {
     display: flex;
@@ -256,6 +294,7 @@
     margin: 4px 0;
   }
 
+  /* ── Input area ──────────────────────────────────────────────── */
   .input-area {
     padding: 12px 20px 16px;
     border-top: 1px solid var(--border);
@@ -273,8 +312,11 @@
     transition: border-color 0.15s;
   }
 
-  .input-wrap:focus-within {
-    border-color: var(--border-hover);
+  .input-wrap:focus-within { border-color: var(--border-hover); }
+
+  .input-wrap.listening {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
   }
 
   textarea {
@@ -292,13 +334,41 @@
     padding: 4px 0;
   }
 
-  textarea::placeholder {
-    color: var(--text-dim);
+  textarea::placeholder { color: var(--text-dim); }
+  textarea:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .mic-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: border-color 0.15s, background 0.15s;
+    color: var(--text-muted);
   }
 
-  textarea:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  .mic-btn:hover { border-color: var(--border-hover); color: var(--text); }
+
+  .mic-btn.active {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    border-color: var(--accent);
+  }
+
+  .mic-pulse {
+    animation: mic-pulse 0.8s ease-in-out infinite;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  @keyframes mic-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
   }
 
   .send-btn {
@@ -318,14 +388,8 @@
     transition: opacity 0.15s;
   }
 
-  .send-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-
-  .send-btn:not(:disabled):hover {
-    opacity: 0.85;
-  }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .send-btn:not(:disabled):hover { opacity: 0.85; }
 
   .spinner {
     width: 14px;
@@ -337,8 +401,50 @@
     display: block;
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Hint row ──────────────────────────────────────────────── */
+  .input-hint {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .hint-text {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .hint-actions { display: flex; align-items: center; gap: 6px; }
+
+  .tts-btn {
+    background: none;
+    border: none;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+  }
+
+  .tts-btn:hover { opacity: 1; }
+
+  .tts-btn.speaking {
+    animation: tts-pulse 1s ease-in-out infinite;
+    opacity: 1;
+  }
+
+  @keyframes tts-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .tts-indicator {
+    font-size: 11px;
+    opacity: 0.35;
+    line-height: 1;
   }
 
   .system-notice {
@@ -347,12 +453,5 @@
     color: var(--text-dim);
     padding: 8px 0;
     font-style: italic;
-  }
-
-  .input-hint {
-    margin-top: 6px;
-    font-size: 10px;
-    color: var(--text-dim);
-    text-align: center;
   }
 </style>
