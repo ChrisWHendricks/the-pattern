@@ -242,24 +242,27 @@
           {#if draftTtsProvider === "system"}
             <div class="divider"></div>
             <div class="setting-block">
-              <p class="block-label">Voice</p>
+              <label class="block-label" for="system-voice">Voice Name</label>
               <p class="block-desc">
-                Choose from installed English voices. To add better voices, go to
-                <em>System Settings → Accessibility → Spoken Content → System Voice → Manage Voices</em>
-                and download <strong>Ava</strong> or <strong>Evan</strong> (Premium tier).
+                Type a voice name — e.g. <strong>Ava</strong>, <strong>Evan</strong>, <strong>Samantha</strong>.
+                Leave blank to auto-pick the best available.
+                Premium voices may not appear in the suggestion list below but still work if typed correctly.
               </p>
-              {#if systemVoices.length > 0}
-                <select
-                  class="voice-select"
-                  bind:value={draftSystemVoiceName}
-                >
-                  <option value="">Auto (best available)</option>
-                  {#each systemVoices as v}
-                    <option value={v.name}>{v.name}</option>
-                  {/each}
-                </select>
-              {:else}
-                <div class="info-box">Voice list unavailable — voices load after first TTS playback.</div>
+              <input
+                id="system-voice"
+                type="text"
+                list="voice-datalist"
+                placeholder="Ava"
+                bind:value={draftSystemVoiceName}
+                spellcheck={false}
+              />
+              <datalist id="voice-datalist">
+                {#each systemVoices as v}
+                  <option value={v.name}></option>
+                {/each}
+              </datalist>
+              {#if systemVoices.length === 0}
+                <p class="block-desc" style="margin-top:6px">Suggestions load after the first TTS playback.</p>
               {/if}
             </div>
 

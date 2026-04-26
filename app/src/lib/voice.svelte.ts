@@ -59,7 +59,12 @@ function createVoiceStore() {
     };
 
     recognition.onend = () => { isListening = false; interim = ""; };
-    recognition.onerror = () => { isListening = false; interim = ""; };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onerror = (event: any) => {
+      console.error("[voice] SpeechRecognition error:", event.error, event.message);
+      isListening = false;
+      interim = "";
+    };
 
     recognition.start();
     isListening = true;
