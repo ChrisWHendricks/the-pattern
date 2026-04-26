@@ -4,6 +4,9 @@
   import { settings } from "$lib/stores/settings.svelte";
   import NotesList from "$lib/components/NotesList.svelte";
   import Editor from "$lib/components/Editor.svelte";
+  import OberonChat from "$lib/components/OberonChat.svelte";
+
+  let chatOpen = $state(false);
 
   onMount(async () => {
     if (settings.vaultPath) {
@@ -16,45 +19,63 @@
   }
 </script>
 
-<div class="notes-page">
-  <NotesList />
+<div class="notes-layout">
+  <div class="notes-main">
+    <NotesList />
 
-  <div class="editor-area">
-    {#if !settings.vaultPath}
-      <div class="no-vault">
-        <div class="no-vault-icon">◻</div>
-        <h2>No vault configured</h2>
-        <p>Set your vault path in Settings to start creating notes.</p>
-        <button class="cta-btn" onclick={() => settings.openSettings()}>
-          Open Settings →
-        </button>
-      </div>
-    {:else if vault.currentNote}
-      {#key vault.currentNote.path}
-        <Editor
-          content={vault.currentContent}
-          onSave={handleSave}
-          onDirty={() => vault.markDirty()}
-          saving={vault.isSaving}
-        />
-      {/key}
-    {:else}
-      <div class="no-note">
-        <div class="no-note-icon">◻</div>
-        <p>Select a note or create a new one</p>
-        <button class="cta-btn" onclick={() => vault.newNote()}>
-          New note +
-        </button>
-      </div>
-    {/if}
+    <div class="editor-area">
+      {#if !settings.vaultPath}
+        <div class="no-vault">
+          <div class="no-vault-icon">◻</div>
+          <h2>No vault configured</h2>
+          <p>Set your vault path in Settings to start creating notes.</p>
+          <button class="cta-btn" onclick={() => settings.openSettings()}>
+            Open Settings →
+          </button>
+        </div>
+      {:else if vault.currentNote}
+        {#key vault.currentNote.path}
+          <Editor
+            content={vault.currentContent}
+            onSave={handleSave}
+            onDirty={() => vault.markDirty()}
+            saving={vault.isSaving}
+            {chatOpen}
+            onToggleChat={() => (chatOpen = !chatOpen)}
+          />
+        {/key}
+      {:else}
+        <div class="no-note">
+          <div class="no-note-icon">◻</div>
+          <p>Select a note or create a new one</p>
+          <button class="cta-btn" onclick={() => vault.newNote()}>
+            New note +
+          </button>
+        </div>
+      {/if}
+    </div>
   </div>
+
+  {#if chatOpen}
+    <div class="chat-panel">
+      <OberonChat />
+    </div>
+  {/if}
 </div>
 
 <style>
-  .notes-page {
+  .notes-layout {
     flex: 1;
     display: flex;
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .notes-main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    min-width: 0;
     overflow: hidden;
   }
 
@@ -63,6 +84,16 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    overflow: hidden;
+  }
+
+  .chat-panel {
+    width: 340px;
+    min-width: 340px;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
   }
 

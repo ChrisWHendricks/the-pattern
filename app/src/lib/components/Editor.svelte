@@ -10,9 +10,11 @@
     onSave: (markdown: string) => void;
     onDirty?: () => void;
     saving?: boolean;
+    chatOpen?: boolean;
+    onToggleChat?: () => void;
   };
 
-  let { content, onSave, onDirty, saving = false }: Props = $props();
+  let { content, onSave, onDirty, saving = false, chatOpen = false, onToggleChat }: Props = $props();
 
   let editorEl = $state<HTMLElement | null>(null);
   let rawMode = $state(false);
@@ -202,6 +204,15 @@
 
     <div class="toolbar-spacer"></div>
 
+    {#if onToggleChat}
+      <button
+        class="toolbar-btn chat-btn"
+        class:active={chatOpen}
+        onclick={onToggleChat}
+        title={chatOpen ? "Hide Oberon" : "Ask Oberon"}
+      >◈</button>
+    {/if}
+
     <button
       class="toolbar-btn raw-btn"
       class:active={rawMode}
@@ -282,6 +293,11 @@
 
   .raw-btn.active {
     color: var(--oberon);
+  }
+
+  .chat-btn.active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .save-status {
