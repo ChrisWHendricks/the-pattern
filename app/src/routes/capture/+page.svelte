@@ -10,15 +10,18 @@
   const appWindow = getCurrentWindow();
 
   onMount(() => {
-    inputEl?.focus();
-
     function onKeydown(e: KeyboardEvent) {
       if (e.key === "Escape") { e.preventDefault(); close(); }
     }
     window.addEventListener("keydown", onKeydown);
 
+    // Focus textarea every time the window becomes visible (onMount fires while hidden)
     const unlisten = appWindow.onFocusChanged(({ payload: focused }) => {
-      if (!focused) close();
+      if (focused) {
+        setTimeout(() => inputEl?.focus(), 50);
+      } else {
+        close();
+      }
     });
 
     return () => {
