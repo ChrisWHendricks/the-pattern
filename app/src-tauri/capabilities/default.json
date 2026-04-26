@@ -6,29 +6,12 @@
   "permissions": [
     "core:default",
     "opener:default",
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:allow-read-dir",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:allow-create-dir",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$HOME/**" }]
-    },
-    {
-      "identifier": "fs:allow-remove-file",
-      "allow": [{ "path": "$HOME/**" }]
-    }
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-remove",
+    "fs:scope-home-recursive"
   ]
 }
