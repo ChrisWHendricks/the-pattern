@@ -35,6 +35,7 @@
           content={vault.currentContent}
           onSave={handleSave}
           onDirty={() => vault.markDirty()}
+          saving={vault.isSaving}
         />
       {/key}
     {:else}

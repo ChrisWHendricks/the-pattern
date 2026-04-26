@@ -9,15 +9,27 @@
     content: string;
     onSave: (markdown: string) => void;
     onDirty?: () => void;
+    saving?: boolean;
   };
 
-  let { content, onSave, onDirty }: Props = $props();
+  let { content, onSave, onDirty, saving = false }: Props = $props();
 
   let editorEl = $state<HTMLElement | null>(null);
   let rawMode = $state(false);
   // eslint-disable-next-line svelte/valid-prop-bindings
   let rawContent = $state(content);
   let editor: Editor | null = null;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const AUTOSAVE_DELAY = 1500;
+
+  function scheduleAutosave() {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      save();
+    }, AUTOSAVE_DELAY);
+  }
 
   const td = new TurndownService({
     headingStyle: "atx",
@@ -53,18 +65,29 @@
       },
       onUpdate: () => {
         onDirty?.();
+        scheduleAutosave();
       },
     });
 
     editor = e;
 
     return () => {
+      // Flush any pending autosave before the editor is destroyed
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+        if (!e.isDestroyed) onSave(toMarkdown(e.getHTML()));
+      }
       editor = null;
       e.destroy();
     };
   });
 
   function save() {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
     if (rawMode) {
       onSave(rawContent);
     } else if (editor) {
@@ -186,18 +209,14 @@
       title="Toggle raw markdown"
     >Raw</button>
 
-    <button
-      class="toolbar-btn save-btn"
-      onclick={save}
-      title="Save (⌘S)"
-    >Save</button>
+    <span class="save-status" class:visible={saving}>Saving…</span>
   </div>
 
   {#if rawMode}
     <textarea
       class="raw-editor"
       bind:value={rawContent}
-      oninput={onDirty}
+      oninput={() => { onDirty?.(); scheduleAutosave(); }}
       spellcheck={false}
     ></textarea>
   {:else}
@@ -265,16 +284,17 @@
     color: var(--oberon);
   }
 
-  .save-btn {
-    color: var(--accent);
-    border: 1px solid var(--accent);
-    opacity: 0.7;
+  .save-status {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 0 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
   }
 
-  .save-btn:hover {
+  .save-status.visible {
     opacity: 1;
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-    color: var(--accent);
   }
 
   .editor-content {
