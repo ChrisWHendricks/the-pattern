@@ -4,6 +4,8 @@
   import Placeholder from "@tiptap/extension-placeholder";
   import { marked } from "marked";
   import TurndownService from "turndown";
+  import { SlashCommands } from "$lib/editor/slash-commands";
+  import { BlockActions } from "$lib/editor/block-actions";
 
   type Props = {
     content: string;
@@ -59,7 +61,23 @@
       element: el,
       extensions: [
         StarterKit,
-        Placeholder.configure({ placeholder: "Start writing…" }),
+        Placeholder.configure({ placeholder: "Start writing… or type / for commands" }),
+        SlashCommands,
+        BlockActions.configure({
+          onAddBlock: (pos: number) => {
+            // Insert an empty paragraph after the block at pos, focus, then open slash menu
+            const node = e.state.doc.nodeAt(pos);
+            if (!node) return;
+            const insertAt = pos + node.nodeSize;
+            e.chain()
+              .focus(insertAt)
+              .insertContentAt(insertAt, { type: "paragraph" })
+              .focus(insertAt + 1)
+              .run();
+            // Trigger slash menu after focus settles
+            setTimeout(() => e.commands.insertContent("/"), 30);
+          },
+        }),
       ],
       content: toHtml(content),
       editorProps: {
@@ -433,5 +451,153 @@
     line-height: 1.7;
     resize: none;
     min-height: 0;
+  }
+
+  /* ── Slash command menu (appended to body, fixed position) ── */
+  :global(.slash-menu) {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    padding: 4px;
+    min-width: 240px;
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  :global(.slash-item) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s;
+  }
+
+  :global(.slash-item:hover),
+  :global(.slash-item.selected) {
+    background: var(--surface-hover);
+  }
+
+  :global(.slash-icon) {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+
+  :global(.slash-info) {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  :global(.slash-label) {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  :global(.slash-desc) {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  :global(.slash-empty) {
+    padding: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  /* ── Block handle (fixed, appended to body) ── */
+  :global(.block-handle) {
+    position: fixed;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 44px;
+    pointer-events: auto;
+    z-index: 100;
+  }
+
+  :global(.block-add),
+  :global(.block-drag) {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s, color 0.1s;
+    padding: 0;
+    line-height: 1;
+    user-select: none;
+  }
+
+  :global(.block-add):hover,
+  :global(.block-drag):hover {
+    background: var(--surface-hover);
+    color: var(--accent);
+  }
+
+  :global(.block-drag) {
+    cursor: grab;
+    font-size: 14px;
+  }
+
+  :global(.block-drag:active) {
+    cursor: grabbing;
+  }
+
+  /* Drop position indicator */
+  :global(.block-drop-line) {
+    position: fixed;
+    height: 2px;
+    background: var(--accent);
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 101;
+    display: none;
+  }
+
+  /* Drag ghost label */
+  :global(.block-drag-ghost) {
+    position: fixed;
+    top: -9999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>
