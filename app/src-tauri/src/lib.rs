@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 

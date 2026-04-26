@@ -645,24 +645,6 @@
   .provider-name { font-size: 12px; font-weight: 600; display: block; }
   .provider-sub  { font-size: 10px; display: block; }
 
-  /* ── Voice select ────────────────────────────────────────── */
-  .voice-select {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 9px 12px;
-    color: var(--text);
-    font-size: 13px;
-    font-family: var(--font-sans);
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.15s;
-    appearance: auto;
-  }
-
-  .voice-select:focus { border-color: var(--accent); }
-
   /* ── Info box ─────────────────────────────────────────────── */
   .info-box {
     margin-top: 16px;
