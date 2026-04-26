@@ -6,7 +6,7 @@
 
   onMount(() => {
     if (settings.vaultPath && vault.indexSize === 0) {
-      vault.loadNotes();
+      vault.loadInscriptions();
     }
   });
 </script>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { journal } from "$lib/stores/journal.svelte";
+  import { chronicles } from "$lib/stores/chronicles.svelte";
   import { settings } from "$lib/stores/settings.svelte";
   import Editor from "$lib/components/Editor.svelte";
   import OberonChat from "$lib/components/OberonChat.svelte";
@@ -9,12 +9,12 @@
 
   onMount(async () => {
     if (settings.vaultPath) {
-      await journal.init();
+      await chronicles.init();
     }
   });
 
   function formatHeading(dateStr: string): string {
-    if (dateStr === journal.todayStr) return "Today";
+    if (dateStr === chronicles.todayStr) return "Today";
     const d = new Date(dateStr + "T12:00:00");
     return d.toLocaleDateString("en-US", {
       weekday: "long", month: "long", day: "numeric",
@@ -22,11 +22,11 @@
   }
 </script>
 
-<div class="journal-layout">
+<div class="chronicles-layout">
   <!-- Entry list -->
   <div class="entry-list">
     <div class="list-header">
-      <span class="list-title">Journal</span>
+      <span class="list-title">Chronicles</span>
     </div>
 
     {#if !settings.vaultPath}
@@ -34,20 +34,20 @@
         <p>Set your vault path in Settings first.</p>
         <button class="link-btn" onclick={() => settings.openSettings()}>Open Settings →</button>
       </div>
-    {:else if journal.entries.length === 0}
+    {:else if chronicles.entries.length === 0}
       <div class="list-empty"><p>Loading…</p></div>
     {:else}
       <ul class="entries">
-        {#each journal.entries as entry (entry.dateStr)}
+        {#each chronicles.entries as entry (entry.dateStr)}
           <li>
             <button
               class="entry-item"
-              class:active={journal.activeDate === entry.dateStr}
-              class:today={entry.dateStr === journal.todayStr}
-              onclick={() => journal.loadEntry(entry.dateStr)}
+              class:active={chronicles.activeDate === entry.dateStr}
+              class:today={entry.dateStr === chronicles.todayStr}
+              onclick={() => chronicles.loadEntry(entry.dateStr)}
             >
               <span class="entry-label">{entry.label}</span>
-              {#if journal.activeDate === entry.dateStr && journal.isDirty}
+              {#if chronicles.activeDate === entry.dateStr && chronicles.isDirty}
                 <span class="dirty-dot"></span>
               {/if}
             </button>
@@ -63,25 +63,25 @@
       <div class="no-vault">
         <div class="no-vault-icon">◫</div>
         <h2>No vault configured</h2>
-        <p>Set your vault path in Settings to start journaling.</p>
+        <p>Set your vault path in Settings to start your chronicles.</p>
         <button class="cta-btn" onclick={() => settings.openSettings()}>Open Settings →</button>
       </div>
-    {:else if journal.isLoading}
+    {:else if chronicles.isLoading}
       <div class="loading">Loading…</div>
     {:else}
       <div class="entry-heading">
-        <span class="entry-date">{formatHeading(journal.activeDate)}</span>
-        {#if journal.activeDate === journal.todayStr}
+        <span class="entry-date">{formatHeading(chronicles.activeDate)}</span>
+        {#if chronicles.activeDate === chronicles.todayStr}
           <span class="today-badge">Today</span>
         {/if}
       </div>
 
-      {#key journal.activeDate}
+      {#key chronicles.activeDate}
         <Editor
-          content={journal.content}
-          onSave={(md) => journal.save(md)}
-          onDirty={() => journal.markDirty()}
-          saving={journal.isSaving}
+          content={chronicles.content}
+          onSave={(md) => chronicles.save(md)}
+          onDirty={() => chronicles.markDirty()}
+          saving={chronicles.isSaving}
           {chatOpen}
           onToggleChat={() => (chatOpen = !chatOpen)}
         />
@@ -96,19 +96,18 @@
   {/if}
 </div>
 
-{#if journal.error}
-  <div class="toast-error">{journal.error}</div>
+{#if chronicles.error}
+  <div class="toast-error">{chronicles.error}</div>
 {/if}
 
 <style>
-  .journal-layout {
+  .chronicles-layout {
     flex: 1;
     display: flex;
     min-height: 0;
     overflow: hidden;
   }
 
-  /* Entry list */
   .entry-list {
     width: 180px;
     min-width: 180px;
@@ -181,15 +180,8 @@
     transition: background 0.1s, color 0.1s;
   }
 
-  .entry-item:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-  }
-
-  .entry-item.active {
-    background: var(--surface-hover);
-    color: var(--text);
-  }
+  .entry-item:hover { background: var(--surface-hover); color: var(--text); }
+  .entry-item.active { background: var(--surface-hover); color: var(--text); }
 
   .entry-item.today .entry-label {
     color: var(--accent);
@@ -204,7 +196,6 @@
     flex-shrink: 0;
   }
 
-  /* Editor area */
   .editor-area {
     flex: 1;
     display: flex;
@@ -249,26 +240,9 @@
     text-align: center;
   }
 
-  .no-vault-icon {
-    font-size: 40px;
-    color: var(--text-dim);
-    opacity: 0.5;
-  }
-
-  .no-vault h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text);
-  }
-
-  .no-vault p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-muted);
-    max-width: 260px;
-    line-height: 1.6;
-  }
+  .no-vault-icon { font-size: 40px; color: var(--text-dim); opacity: 0.5; }
+  .no-vault h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
+  .no-vault p { margin: 0; font-size: 13px; color: var(--text-muted); max-width: 260px; line-height: 1.6; }
 
   .cta-btn {
     margin-top: 4px;
@@ -285,11 +259,7 @@
 
   .cta-btn:hover { opacity: 0.9; }
 
-  .loading {
-    padding: 20px 24px;
-    font-size: 13px;
-    color: var(--text-dim);
-  }
+  .loading { padding: 20px 24px; font-size: 13px; color: var(--text-dim); }
 
   .chat-panel {
     width: 340px;

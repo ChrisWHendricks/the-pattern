@@ -1,4 +1,4 @@
-export type IndexedNote = {
+export type IndexedInscription = {
   path: string;
   title: string;
   content: string;
@@ -29,7 +29,7 @@ function tokenize(text: string): string[] {
     .filter((t) => t.length > 2 && !STOP_WORDS.has(t));
 }
 
-function scoreNote(queryTerms: string[], content: string, title: string): number {
+function scoreInscription(queryTerms: string[], content: string, title: string): number {
   const contentTokens = tokenize(content);
   const titleTokens = tokenize(title);
   let score = 0;
@@ -43,7 +43,7 @@ function scoreNote(queryTerms: string[], content: string, title: string): number
     const titleHits = titleTokens.filter(
       (t) => t === term || t.startsWith(term)
     ).length;
-    if (titleHits > 0) score += titleHits * 3; // title matches worth more
+    if (titleHits > 0) score += titleHits * 3;
   }
 
   return score;
@@ -72,7 +72,6 @@ function bestExcerpt(content: string, queryTerms: string[], maxLen = 500): strin
     }
   }
 
-  // Strip markdown for cleaner reading
   const clean = bestPara
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -84,9 +83,9 @@ function bestExcerpt(content: string, queryTerms: string[], maxLen = 500): strin
   return clean.length > maxLen ? clean.slice(0, maxLen) + "…" : clean;
 }
 
-export function searchNotes(
+export function searchInscriptions(
   query: string,
-  index: IndexedNote[],
+  index: IndexedInscription[],
   topK = 4,
   minScore = 0.5
 ): SearchResult[] {
@@ -97,13 +96,13 @@ export function searchNotes(
 
   const results: SearchResult[] = [];
 
-  for (const note of index) {
-    const score = scoreNote(queryTerms, note.content, note.title);
+  for (const inscription of index) {
+    const score = scoreInscription(queryTerms, inscription.content, inscription.title);
     if (score >= minScore) {
       results.push({
-        path: note.path,
-        title: note.title,
-        excerpt: bestExcerpt(note.content, queryTerms),
+        path: inscription.path,
+        title: inscription.title,
+        excerpt: bestExcerpt(inscription.content, queryTerms),
         score,
       });
     }
@@ -119,5 +118,5 @@ export function buildVaultContext(results: SearchResult[]): string {
     .map((r) => `**${r.title}**\n${r.excerpt}`)
     .join("\n\n---\n\n");
 
-  return `Relevant notes from the vault (use if helpful, cite by note title):\n\n${blocks}`;
+  return `Relevant inscriptions from the vault (use if helpful, cite by title):\n\n${blocks}`;
 }

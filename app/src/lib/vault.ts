@@ -7,7 +7,7 @@ import {
   remove,
 } from "@tauri-apps/plugin-fs";
 
-export type NoteFile = {
+export type InscriptionFile = {
   name: string;
   path: string;
   title: string;
@@ -28,12 +28,12 @@ export async function ensureDir(path: string): Promise<void> {
   }
 }
 
-export async function listNotes(vaultPath: string): Promise<NoteFile[]> {
+export async function listInscriptions(vaultPath: string): Promise<InscriptionFile[]> {
   await ensureDir(vaultPath);
 
   try {
     const entries = await readDir(vaultPath);
-    const notes: NoteFile[] = [];
+    const inscriptions: InscriptionFile[] = [];
 
     for (const entry of entries) {
       if (!entry.isFile) continue;
@@ -50,24 +50,24 @@ export async function listNotes(vaultPath: string): Promise<NoteFile[]> {
         // Use fallback title
       }
 
-      notes.push({ name: displayName, path, title });
+      inscriptions.push({ name: displayName, path, title });
     }
 
-    return notes.sort((a, b) => b.name.localeCompare(a.name));
+    return inscriptions.sort((a, b) => b.name.localeCompare(a.name));
   } catch {
     return [];
   }
 }
 
-export async function readNote(path: string): Promise<string> {
+export async function readInscription(path: string): Promise<string> {
   return await readTextFile(path);
 }
 
-export async function writeNote(path: string, content: string): Promise<void> {
+export async function writeInscription(path: string, content: string): Promise<void> {
   await writeTextFile(path, content);
 }
 
-export async function createNote(vaultPath: string): Promise<NoteFile> {
+export async function createInscription(vaultPath: string): Promise<InscriptionFile> {
   await ensureDir(vaultPath);
 
   const ts = new Date()
@@ -77,58 +77,58 @@ export async function createNote(vaultPath: string): Promise<NoteFile> {
 
   const filename = `${ts}.md`;
   const path = joinPath(vaultPath, filename);
-  const content = `# New Note\n\n`;
+  const content = `# New Inscription\n\n`;
 
   await writeTextFile(path, content);
 
-  return { name: ts, path, title: "New Note" };
+  return { name: ts, path, title: "New Inscription" };
 }
 
-export async function deleteNote(path: string): Promise<void> {
+export async function deleteInscription(path: string): Promise<void> {
   await remove(path);
 }
 
-// ── Journal ──────────────────────────────────────────────────────────────────
+// ── Chronicles ────────────────────────────────────────────────────────────────
 
 export function todayDateStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function journalPath(vaultPath: string, dateStr: string): string {
-  return joinPath(vaultPath, "journal", `${dateStr}.md`);
+function chroniclePath(vaultPath: string, dateStr: string): string {
+  return joinPath(vaultPath, "chronicles", `${dateStr}.md`);
 }
 
-function journalTemplate(dateStr: string): string {
+function chronicleTemplate(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00");
   const friendly = d.toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
-  return `# ${friendly}\n\n## Morning Check-in\n\n\n## Today's Focus\n\n\n## Notes & Thoughts\n\n\n## End of Day\n\n`;
+  return `# ${friendly}\n\n## Morning Check-in\n\n\n## Today's Focus\n\n\n## Thoughts\n\n\n## End of Day\n\n`;
 }
 
-export async function loadJournalEntry(vaultPath: string, dateStr: string): Promise<string> {
-  const dir = joinPath(vaultPath, "journal");
+export async function loadChronicleEntry(vaultPath: string, dateStr: string): Promise<string> {
+  const dir = joinPath(vaultPath, "chronicles");
   await ensureDir(dir);
-  const path = journalPath(vaultPath, dateStr);
+  const path = chroniclePath(vaultPath, dateStr);
   if (!(await exists(path))) {
-    const content = journalTemplate(dateStr);
+    const content = chronicleTemplate(dateStr);
     await writeTextFile(path, content);
     return content;
   }
   return await readTextFile(path);
 }
 
-export async function saveJournalEntry(
+export async function saveChronicleEntry(
   vaultPath: string,
   dateStr: string,
   content: string
 ): Promise<void> {
-  await ensureDir(joinPath(vaultPath, "journal"));
-  await writeTextFile(journalPath(vaultPath, dateStr), content);
+  await ensureDir(joinPath(vaultPath, "chronicles"));
+  await writeTextFile(chroniclePath(vaultPath, dateStr), content);
 }
 
-export async function listJournalDates(vaultPath: string): Promise<string[]> {
-  const dir = joinPath(vaultPath, "journal");
+export async function listChronicleDates(vaultPath: string): Promise<string[]> {
+  const dir = joinPath(vaultPath, "chronicles");
   await ensureDir(dir);
   try {
     const entries = await readDir(dir);

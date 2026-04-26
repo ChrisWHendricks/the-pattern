@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { vault } from "$lib/stores/vault.svelte";
   import { settings } from "$lib/stores/settings.svelte";
-  import NotesList from "$lib/components/NotesList.svelte";
+  import InscriptionsList from "$lib/components/InscriptionsList.svelte";
   import Editor from "$lib/components/Editor.svelte";
   import OberonChat from "$lib/components/OberonChat.svelte";
 
@@ -10,31 +10,31 @@
 
   onMount(async () => {
     if (settings.vaultPath) {
-      await vault.loadNotes();
+      await vault.loadInscriptions();
     }
   });
 
   async function handleSave(markdown: string) {
-    await vault.saveCurrentNote(markdown);
+    await vault.saveCurrentInscription(markdown);
   }
 </script>
 
-<div class="notes-layout">
-  <div class="notes-main">
-    <NotesList />
+<div class="inscriptions-layout">
+  <div class="inscriptions-main">
+    <InscriptionsList />
 
     <div class="editor-area">
       {#if !settings.vaultPath}
         <div class="no-vault">
           <div class="no-vault-icon">◻</div>
           <h2>No vault configured</h2>
-          <p>Set your vault path in Settings to start creating notes.</p>
+          <p>Set your vault path in Settings to start writing inscriptions.</p>
           <button class="cta-btn" onclick={() => settings.openSettings()}>
             Open Settings →
           </button>
         </div>
-      {:else if vault.currentNote}
-        {#key vault.currentNote.path}
+      {:else if vault.currentInscription}
+        {#key vault.currentInscription.path}
           <Editor
             content={vault.currentContent}
             onSave={handleSave}
@@ -45,11 +45,11 @@
           />
         {/key}
       {:else}
-        <div class="no-note">
-          <div class="no-note-icon">◻</div>
-          <p>Select a note or create a new one</p>
-          <button class="cta-btn" onclick={() => vault.newNote()}>
-            New note +
+        <div class="no-inscription">
+          <div class="no-inscription-icon">◻</div>
+          <p>Select an inscription or create a new one</p>
+          <button class="cta-btn" onclick={() => vault.newInscription()}>
+            New inscription +
           </button>
         </div>
       {/if}
@@ -64,14 +64,14 @@
 </div>
 
 <style>
-  .notes-layout {
+  .inscriptions-layout {
     flex: 1;
     display: flex;
     min-height: 0;
     overflow: hidden;
   }
 
-  .notes-main {
+  .inscriptions-main {
     flex: 1;
     display: flex;
     min-height: 0;
@@ -98,7 +98,7 @@
   }
 
   .no-vault,
-  .no-note {
+  .no-inscription {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -110,7 +110,7 @@
   }
 
   .no-vault-icon,
-  .no-note-icon {
+  .no-inscription-icon {
     font-size: 40px;
     color: var(--text-dim);
     opacity: 0.5;
@@ -124,7 +124,7 @@
   }
 
   .no-vault p,
-  .no-note p {
+  .no-inscription p {
     margin: 0;
     font-size: 13px;
     color: var(--text-muted);

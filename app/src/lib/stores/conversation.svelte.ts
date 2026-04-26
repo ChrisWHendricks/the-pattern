@@ -5,12 +5,12 @@ import {
   looksLikeCommitmentContent,
   generateSessionSummary,
 } from "$lib/claude";
-import { searchNotes, buildVaultContext } from "$lib/search";
+import { searchInscriptions, buildVaultContext } from "$lib/search";
 import { settings } from "$lib/stores/settings.svelte";
 import { commitments } from "$lib/stores/commitments.svelte";
 import { sessionStore } from "$lib/stores/sessions.svelte";
 import { vault } from "$lib/stores/vault.svelte";
-import { loadJournalEntry, todayDateStr } from "$lib/vault";
+import { loadChronicleEntry, todayDateStr } from "$lib/vault";
 
 export type Message = {
   id: string;
@@ -60,7 +60,7 @@ function createConversation() {
     let vaultContext = "";
     let citedNotes: string[] = [];
     try {
-      const results = searchNotes(content, vault.searchIndex);
+      const results = searchInscriptions(content, vault.searchIndex);
       if (results.length > 0) {
         vaultContext = buildVaultContext(results);
         citedNotes = results.map((r) => r.title);
@@ -117,7 +117,7 @@ function createConversation() {
   }
 
   async function startMorningBriefing() {
-    const vaultResults = searchNotes(
+    const vaultResults = searchInscriptions(
       "today priorities commitments tasks focus",
       vault.searchIndex,
       3
@@ -126,18 +126,18 @@ function createConversation() {
     const trigger = getMorningTrigger(commitments.openSummary());
 
     // Pull today's journal entry into the briefing if available
-    let journalContext = "";
+    let chronicleContext = "";
     if (settings.vaultPath) {
       try {
-        const entry = await loadJournalEntry(settings.vaultPath, todayDateStr());
+        const entry = await loadChronicleEntry(settings.vaultPath, todayDateStr());
         const stripped = entry.replace(/^#.+\n/m, "").trim();
-        if (stripped) journalContext = `\n\nToday's journal:\n${stripped}`;
+        if (stripped) chronicleContext = `\n\nToday's chronicle:\n${stripped}`;
       } catch {
         // Non-critical
       }
     }
 
-    const parts = [trigger, journalContext];
+    const parts = [trigger, chronicleContext];
     if (vaultContext) parts.push(`\n\nAdditional vault context:\n${vaultContext}`);
 
     await send(parts.join(""));

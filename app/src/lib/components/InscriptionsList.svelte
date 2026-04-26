@@ -1,51 +1,47 @@
 <script lang="ts">
   import { vault } from "$lib/stores/vault.svelte";
   import { settings } from "$lib/stores/settings.svelte";
-
-  function noVaultConfigured() {
-    return !settings.vaultPath;
-  }
 </script>
 
-<div class="notes-list">
+<div class="inscriptions-list">
   <div class="list-header">
-    <span class="list-title">Notes</span>
+    <span class="list-title">Inscriptions</span>
     <button
       class="new-btn"
-      onclick={() => vault.newNote()}
+      onclick={() => vault.newInscription()}
       disabled={!settings.vaultPath}
-      title="New note"
+      title="New inscription"
     >+</button>
   </div>
 
-  {#if noVaultConfigured()}
+  {#if !settings.vaultPath}
     <div class="empty-state">
       <p>Set your vault path in Settings to get started.</p>
       <button class="link-btn" onclick={() => settings.openSettings()}>
         Open Settings →
       </button>
     </div>
-  {:else if vault.isLoading && vault.notes.length === 0}
-    <div class="loading">Loading notes…</div>
-  {:else if vault.notes.length === 0}
+  {:else if vault.isLoading && vault.inscriptions.length === 0}
+    <div class="loading">Loading inscriptions…</div>
+  {:else if vault.inscriptions.length === 0}
     <div class="empty-state">
-      <p>No notes yet.</p>
-      <button class="link-btn" onclick={() => vault.newNote()}>
-        Create your first note →
+      <p>No inscriptions yet.</p>
+      <button class="link-btn" onclick={() => vault.newInscription()}>
+        Create your first inscription →
       </button>
     </div>
   {:else}
-    <ul class="note-items">
-      {#each vault.notes as note (note.path)}
+    <ul class="inscription-items">
+      {#each vault.inscriptions as inscription (inscription.path)}
         <li>
           <button
-            class="note-item"
-            class:active={vault.currentNote?.path === note.path}
-            onclick={() => vault.openNote(note)}
+            class="inscription-item"
+            class:active={vault.currentInscription?.path === inscription.path}
+            onclick={() => vault.openInscription(inscription)}
           >
-            <span class="note-icon">◻</span>
-            <span class="note-title">{note.title}</span>
-            {#if vault.currentNote?.path === note.path && vault.isDirty}
+            <span class="inscription-icon">◻</span>
+            <span class="inscription-title">{inscription.title}</span>
+            {#if vault.currentInscription?.path === inscription.path && vault.isDirty}
               <span class="dirty-dot" title="Unsaved changes"></span>
             {/if}
           </button>
@@ -60,7 +56,7 @@
 </div>
 
 <style>
-  .notes-list {
+  .inscriptions-list {
     width: 220px;
     min-width: 220px;
     height: 100%;
@@ -114,14 +110,14 @@
     cursor: not-allowed;
   }
 
-  .note-items {
+  .inscription-items {
     flex: 1;
     overflow-y: auto;
     list-style: none;
     padding: 6px 6px;
   }
 
-  .note-item {
+  .inscription-item {
     display: flex;
     align-items: center;
     gap: 7px;
@@ -138,27 +134,27 @@
     overflow: hidden;
   }
 
-  .note-item:hover {
+  .inscription-item:hover {
     background: var(--surface-hover);
     color: var(--text);
   }
 
-  .note-item.active {
+  .inscription-item.active {
     background: var(--surface-hover);
     color: var(--text);
   }
 
-  .note-icon {
+  .inscription-icon {
     font-size: 11px;
     flex-shrink: 0;
     color: var(--text-dim);
   }
 
-  .note-item.active .note-icon {
+  .inscription-item.active .inscription-icon {
     color: var(--accent);
   }
 
-  .note-title {
+  .inscription-title {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
