@@ -4,6 +4,10 @@
   import { MODELS, type ModelKey } from "$lib/claude";
   import { homeDir } from "@tauri-apps/api/path";
 
+  type Tab = "oberon" | "vault" | "voice";
+
+  let tab = $state<Tab>("oberon");
+
   let draftKey = $state(settings.apiKey);
   let draftModel = $state<ModelKey>(settings.model);
   let draftVaultPath = $state(settings.vaultPath);
@@ -15,8 +19,16 @@
   let draftOpenaiKey = $state(settings.openaiKey);
   let draftOpenaiVoice = $state(settings.openaiVoice);
   let showKey = $state(false);
+  let showElKey = $state(false);
+  let showOaiKey = $state(false);
 
   const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
+
+  const TABS: { id: Tab; icon: string; label: string }[] = [
+    { id: "oberon", icon: "⬡", label: "Oberon" },
+    { id: "vault",  icon: "◫", label: "Vault" },
+    { id: "voice",  icon: "◎", label: "Voice" },
+  ];
 
   onMount(() => {
     if (!draftVaultPath) {
@@ -24,6 +36,8 @@
         draftVaultPath = `${home}Documents/ThePattern/notes`;
       });
     }
+    // If no API key yet, start on Oberon tab
+    if (!settings.hasApiKey) tab = "oberon";
   });
 
   function save() {
@@ -44,7 +58,6 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape") settings.closeSettings();
-    if (e.key === "Enter" && draftKey.trim()) save();
   }
 </script>
 
@@ -59,207 +72,241 @@
     class="dialog"
     role="dialog"
     aria-modal="true"
-    aria-label="Configure Oberon"
+    aria-label="Settings"
     tabindex="-1"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}
   >
-    <div class="dialog-header">
-      <div class="dialog-mark">⬡</div>
-      <div>
-        <h2>Configure Oberon</h2>
-        <p>Connect your Anthropic API key to start.</p>
+    <!-- ── Sidebar ──────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-mark">⬡</span>
+        <span class="sidebar-title">Settings</span>
       </div>
-    </div>
-
-    <div class="field">
-      <label for="api-key">Anthropic API Key</label>
-      <div class="input-wrap">
-        <input
-          id="api-key"
-          type={showKey ? "text" : "password"}
-          placeholder="sk-ant-..."
-          bind:value={draftKey}
-          autocomplete="off"
-          spellcheck={false}
-        />
-        <button class="show-btn" onclick={() => (showKey = !showKey)}>
-          {showKey ? "Hide" : "Show"}
-        </button>
-      </div>
-      <div class="field-hint">
-        Get yours at console.anthropic.com — Haiku tier is very affordable for daily use.
-      </div>
-    </div>
-
-    <div class="field">
-      <p class="field-label">Default Model</p>
-      <div class="model-toggle">
-        {#each Object.entries(MODELS) as [key, _]}
+      <nav class="sidebar-nav">
+        {#each TABS as t}
           <button
-            class="model-btn"
-            class:selected={draftModel === key}
-            onclick={() => (draftModel = key as ModelKey)}
+            class="nav-item"
+            class:active={tab === t.id}
+            onclick={() => (tab = t.id)}
           >
-            <span class="model-name">{key === "haiku" ? "Haiku" : "Sonnet"}</span>
-            <span class="model-desc">
-              {key === "haiku" ? "Fast · Everyday queries" : "Powerful · Deep thinking"}
-            </span>
+            <span class="nav-icon">{t.icon}</span>
+            {t.label}
           </button>
         {/each}
-      </div>
-      <div class="field-hint">Haiku is recommended — Sonnet is available for complex tasks anytime.</div>
-    </div>
+      </nav>
+    </aside>
 
-    <div class="field">
-      <label for="vault-path">Notes Vault Path</label>
-      <textarea
-        id="vault-path"
-        class="path-input"
-        placeholder="/Users/you/Documents/ThePattern/notes"
-        bind:value={draftVaultPath}
-        spellcheck={false}
-        rows={2}
-      ></textarea>
-      <div class="field-hint">
-        Folder where your markdown notes are stored. Use your Google Drive path to sync across devices.
-      </div>
-    </div>
+    <!-- ── Content ─────────────────────────────────────────── -->
+    <div class="content">
+      {#if tab === "oberon"}
+        <h2 class="section-title">Oberon</h2>
 
-    <div class="field toggle-field">
-      <div class="toggle-row">
-        <div>
-          <p class="field-label">Autosave notes</p>
-          <div class="field-hint">Save automatically after 1.5 s of inactivity. Turn off to save manually with ⌘S.</div>
-        </div>
-        <button
-          class="toggle-btn"
-          class:on={draftAutosave}
-          onclick={() => (draftAutosave = !draftAutosave)}
-          role="switch"
-          aria-checked={draftAutosave}
-          aria-label="Toggle autosave"
-        >
-          <span class="toggle-thumb"></span>
-        </button>
-      </div>
-    </div>
-
-    <!-- ── TTS ─────────────────────────────────────────────── -->
-    <div class="field toggle-field">
-      <div class="toggle-row">
-        <div>
-          <p class="field-label">Oberon reads responses aloud</p>
-          <div class="field-hint">Auto-play TTS after each response.</div>
-        </div>
-        <button
-          class="toggle-btn"
-          class:on={draftTts}
-          onclick={() => (draftTts = !draftTts)}
-          role="switch"
-          aria-checked={draftTts}
-          aria-label="Toggle text-to-speech"
-        >
-          <span class="toggle-thumb"></span>
-        </button>
-      </div>
-    </div>
-
-    {#if draftTts}
-      <div class="field">
-        <p class="field-label">Voice Provider</p>
-        <div class="provider-toggle">
-          <button
-            class="provider-btn"
-            class:selected={draftTtsProvider === "system"}
-            onclick={() => (draftTtsProvider = "system")}
-          >
-            <span class="provider-name">macOS System</span>
-            <span class="provider-desc">Free · Built-in</span>
-          </button>
-          <button
-            class="provider-btn"
-            class:selected={draftTtsProvider === "elevenlabs"}
-            onclick={() => (draftTtsProvider = "elevenlabs")}
-          >
-            <span class="provider-name">ElevenLabs</span>
-            <span class="provider-desc">Best quality · 10k/mo free</span>
-          </button>
-          <button
-            class="provider-btn"
-            class:selected={draftTtsProvider === "openai"}
-            onclick={() => (draftTtsProvider = "openai")}
-          >
-            <span class="provider-name">OpenAI</span>
-            <span class="provider-desc">Very good · Pay-per-use</span>
-          </button>
-        </div>
-      </div>
-
-      {#if draftTtsProvider === "system"}
-        <div class="field">
-          <div class="field-hint provider-hint">
-            For the best voice, download a Premium voice in <strong>System Settings → Accessibility → Spoken Content → System Voice → Manage Voices</strong>. Try <em>Ava (Premium)</em> or <em>Evan (Premium)</em> — they're free and sound natural.
+        <div class="setting-block">
+          <label class="block-label" for="api-key">Anthropic API Key</label>
+          <p class="block-desc">Required to connect Oberon. Get yours at console.anthropic.com.</p>
+          <div class="key-wrap">
+            <input
+              id="api-key"
+              type={showKey ? "text" : "password"}
+              placeholder="sk-ant-..."
+              bind:value={draftKey}
+              autocomplete="off"
+              spellcheck={false}
+            />
+            <button class="show-btn" onclick={() => (showKey = !showKey)}>
+              {showKey ? "Hide" : "Show"}
+            </button>
           </div>
         </div>
 
-      {:else if draftTtsProvider === "elevenlabs"}
-        <div class="field">
-          <label for="el-key">ElevenLabs API Key</label>
-          <input
-            id="el-key"
-            type="password"
-            placeholder="..."
-            bind:value={draftElevenLabsKey}
-            autocomplete="off"
-            spellcheck={false}
-          />
-          <div class="field-hint">Get your key at elevenlabs.io — free tier: 10,000 chars/month.</div>
-        </div>
-        <div class="field">
-          <label for="el-voice">Voice ID</label>
-          <input
-            id="el-voice"
-            type="text"
-            placeholder="21m00Tcm4TlvDq8ikWAM"
-            bind:value={draftElevenLabsVoiceId}
-            spellcheck={false}
-          />
-          <div class="field-hint">Default: Rachel (natural female). Browse voices at elevenlabs.io/voice-library.</div>
-        </div>
+        <div class="divider"></div>
 
-      {:else if draftTtsProvider === "openai"}
-        <div class="field">
-          <label for="oai-key">OpenAI API Key</label>
-          <input
-            id="oai-key"
-            type="password"
-            placeholder="sk-..."
-            bind:value={draftOpenaiKey}
-            autocomplete="off"
-            spellcheck={false}
-          />
-          <div class="field-hint">~$0.015 per 1,000 characters (tts-1 model).</div>
-        </div>
-        <div class="field">
-          <p class="field-label">Voice</p>
-          <div class="voice-grid">
-            {#each OPENAI_VOICES as v}
+        <div class="setting-block">
+          <p class="block-label">Default Model</p>
+          <p class="block-desc">Haiku is fast and affordable for everyday queries. Switch to Sonnet for complex tasks anytime.</p>
+          <div class="model-toggle">
+            {#each Object.entries(MODELS) as [key, _]}
               <button
-                class="voice-btn"
-                class:selected={draftOpenaiVoice === v}
-                onclick={() => (draftOpenaiVoice = v)}
+                class="model-btn"
+                class:selected={draftModel === key}
+                onclick={() => (draftModel = key as ModelKey)}
               >
-                {v}
+                <span class="model-name">{key === "haiku" ? "Haiku" : "Sonnet"}</span>
+                <span class="model-sub">{key === "haiku" ? "Fast · Everyday" : "Powerful · Deep thinking"}</span>
               </button>
             {/each}
           </div>
-          <div class="field-hint">Nova and Shimmer are popular choices.</div>
         </div>
-      {/if}
-    {/if}
 
-    <div class="dialog-actions">
+      {:else if tab === "vault"}
+        <h2 class="section-title">Vault</h2>
+
+        <div class="setting-block">
+          <label class="block-label" for="vault-path">Notes Vault Path</label>
+          <p class="block-desc">Folder where your markdown inscriptions are stored. Point this at a Google Drive or iCloud folder to sync across devices.</p>
+          <textarea
+            id="vault-path"
+            class="path-input"
+            placeholder="/Users/you/Documents/ThePattern/notes"
+            bind:value={draftVaultPath}
+            spellcheck={false}
+            rows={2}
+          ></textarea>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <p class="setting-name">Autosave</p>
+            <p class="setting-desc">Automatically save after 1.5 s of inactivity. Turn off to save manually with ⌘S.</p>
+          </div>
+          <button
+            class="toggle-btn"
+            class:on={draftAutosave}
+            onclick={() => (draftAutosave = !draftAutosave)}
+            role="switch"
+            aria-checked={draftAutosave}
+            aria-label="Toggle autosave"
+          >
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+
+      {:else if tab === "voice"}
+        <h2 class="section-title">Voice</h2>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <p class="setting-name">Read responses aloud</p>
+            <p class="setting-desc">Oberon speaks each response after it finishes streaming.</p>
+          </div>
+          <button
+            class="toggle-btn"
+            class:on={draftTts}
+            onclick={() => (draftTts = !draftTts)}
+            role="switch"
+            aria-checked={draftTts}
+            aria-label="Toggle text-to-speech"
+          >
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+
+        {#if draftTts}
+          <div class="divider"></div>
+
+          <div class="setting-block">
+            <p class="block-label">Provider</p>
+            <p class="block-desc">Choose your TTS engine. ElevenLabs sounds the most natural.</p>
+            <div class="provider-toggle">
+              <button
+                class="provider-btn"
+                class:selected={draftTtsProvider === "system"}
+                onclick={() => (draftTtsProvider = "system")}
+              >
+                <span class="provider-name">macOS System</span>
+                <span class="provider-sub">Free · Built-in</span>
+              </button>
+              <button
+                class="provider-btn"
+                class:selected={draftTtsProvider === "elevenlabs"}
+                onclick={() => (draftTtsProvider = "elevenlabs")}
+              >
+                <span class="provider-name">ElevenLabs</span>
+                <span class="provider-sub">Best quality · 10k/mo free</span>
+              </button>
+              <button
+                class="provider-btn"
+                class:selected={draftTtsProvider === "openai"}
+                onclick={() => (draftTtsProvider = "openai")}
+              >
+                <span class="provider-name">OpenAI</span>
+                <span class="provider-sub">Very good · Pay-per-use</span>
+              </button>
+            </div>
+          </div>
+
+          {#if draftTtsProvider === "system"}
+            <div class="info-box">
+              For the most natural voice, download a <strong>Premium</strong> voice in
+              <em>System Settings → Accessibility → Spoken Content → System Voice → Manage Voices</em>.
+              Try <strong>Ava (Premium)</strong> or <strong>Evan (Premium)</strong> — both are free and neural-quality.
+            </div>
+
+          {:else if draftTtsProvider === "elevenlabs"}
+            <div class="divider"></div>
+            <div class="setting-block">
+              <label class="block-label" for="el-key">ElevenLabs API Key</label>
+              <p class="block-desc">Get your key at elevenlabs.io — free tier includes 10,000 chars/month.</p>
+              <div class="key-wrap">
+                <input
+                  id="el-key"
+                  type={showElKey ? "text" : "password"}
+                  placeholder="..."
+                  bind:value={draftElevenLabsKey}
+                  autocomplete="off"
+                  spellcheck={false}
+                />
+                <button class="show-btn" onclick={() => (showElKey = !showElKey)}>
+                  {showElKey ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+            <div class="setting-block">
+              <label class="block-label" for="el-voice">Voice ID</label>
+              <p class="block-desc">Default: Rachel — natural female. Find IDs at elevenlabs.io/voice-library.</p>
+              <input
+                id="el-voice"
+                type="text"
+                placeholder="21m00Tcm4TlvDq8ikWAM"
+                bind:value={draftElevenLabsVoiceId}
+                spellcheck={false}
+              />
+            </div>
+
+          {:else if draftTtsProvider === "openai"}
+            <div class="divider"></div>
+            <div class="setting-block">
+              <label class="block-label" for="oai-key">OpenAI API Key</label>
+              <p class="block-desc">~$0.015 per 1,000 characters using the tts-1 model.</p>
+              <div class="key-wrap">
+                <input
+                  id="oai-key"
+                  type={showOaiKey ? "text" : "password"}
+                  placeholder="sk-..."
+                  bind:value={draftOpenaiKey}
+                  autocomplete="off"
+                  spellcheck={false}
+                />
+                <button class="show-btn" onclick={() => (showOaiKey = !showOaiKey)}>
+                  {showOaiKey ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+            <div class="setting-block">
+              <p class="block-label">Voice</p>
+              <p class="block-desc">Nova and Shimmer are popular choices.</p>
+              <div class="voice-grid">
+                {#each OPENAI_VOICES as v}
+                  <button
+                    class="voice-btn"
+                    class:selected={draftOpenaiVoice === v}
+                    onclick={() => (draftOpenaiVoice = v)}
+                  >
+                    {v}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        {/if}
+      {/if}
+    </div>
+
+    <!-- ── Footer ──────────────────────────────────────────── -->
+    <div class="footer">
       {#if settings.hasApiKey}
         <button class="btn-cancel" onclick={() => settings.closeSettings()}>Cancel</button>
       {/if}
@@ -267,6 +314,10 @@
         {settings.hasApiKey ? "Save changes" : "Connect Oberon"}
       </button>
     </div>
+
+    {#if settings.hasApiKey}
+      <button class="close-btn" onclick={() => settings.closeSettings()} aria-label="Close settings">✕</button>
+    {/if}
   </div>
 </div>
 
@@ -274,13 +325,12 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
     backdrop-filter: blur(4px);
-    overflow-y: auto;
     padding: 20px;
   }
 
@@ -288,58 +338,146 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 28px;
-    width: 440px;
+    width: 680px;
     max-width: calc(100vw - 40px);
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-    margin: auto;
+    max-height: calc(100vh - 40px);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    grid-template-rows: 1fr auto;
+    overflow: hidden;
+    position: relative;
   }
 
-  .dialog-header {
+  /* ── Sidebar ──────────────────────────────────────────────── */
+  .sidebar {
+    grid-row: 1 / 3;
+    background: color-mix(in srgb, var(--bg) 60%, var(--surface));
+    border-right: 1px solid var(--border);
     display: flex;
-    align-items: flex-start;
-    gap: 14px;
-    margin-bottom: 24px;
+    flex-direction: column;
+    padding: 20px 0 20px;
   }
 
-  .dialog-mark {
-    font-size: 28px;
-    color: var(--accent);
-    line-height: 1;
-    margin-top: 2px;
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
   }
 
-  h2 {
-    margin: 0 0 4px;
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text);
-  }
+  .sidebar-mark { font-size: 20px; color: var(--accent); }
 
-  h2 + p {
-    margin: 0;
+  .sidebar-title {
     font-size: 13px;
-    color: var(--text-muted);
-  }
-
-  .field {
-    margin-bottom: 20px;
-  }
-
-  label, .field-label {
-    display: block;
-    font-size: 12px;
     font-weight: 600;
     color: var(--text-muted);
-    margin-bottom: 6px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
-  .input-wrap {
+  .sidebar-nav {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 8px;
   }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s, color 0.1s;
+  }
+
+  .nav-item:hover { background: var(--surface-hover); color: var(--text); }
+
+  .nav-item.active {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    color: var(--text);
+  }
+
+  .nav-icon { font-size: 14px; width: 18px; text-align: center; opacity: 0.7; }
+  .nav-item.active .nav-icon { opacity: 1; }
+
+  /* ── Content ──────────────────────────────────────────────── */
+  .content {
+    padding: 28px 28px 12px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .section-title {
+    margin: 0 0 24px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
+
+  /* Setting block — label + desc above, full-width control below */
+  .setting-block { margin-bottom: 4px; }
+
+  .block-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .block-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin: 0 0 10px;
+  }
+
+  /* Setting row — name/desc on left, control on right */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 4px 0;
+  }
+
+  .setting-info { flex: 1; }
+
+  .setting-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    margin: 0 0 3px;
+  }
+
+  .setting-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  /* ── Inputs ───────────────────────────────────────────────── */
+  .key-wrap { display: flex; gap: 8px; }
 
   input {
     flex: 1;
@@ -392,69 +530,7 @@
 
   .path-input:focus { border-color: var(--accent); }
 
-  .field-hint {
-    margin-top: 6px;
-    font-size: 11px;
-    color: var(--text-dim);
-    line-height: 1.5;
-  }
-
-  .provider-hint {
-    background: color-mix(in srgb, var(--accent) 6%, var(--bg));
-    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin-top: 0;
-  }
-
-  .provider-hint strong { color: var(--text-muted); }
-  .provider-hint em { color: var(--accent); font-style: normal; }
-
-  /* ── Model toggle ───────────────────────────────────────── */
-  .model-toggle {
-    display: flex;
-    gap: 8px;
-  }
-
-  .model-btn {
-    flex: 1;
-    padding: 10px 12px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text-muted);
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-
-  .model-btn.selected {
-    border-color: var(--accent);
-    color: var(--text);
-    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
-  }
-
-  .model-btn:not(.selected):hover {
-    border-color: var(--border-hover);
-    color: var(--text);
-  }
-
-  .model-name { font-size: 13px; font-weight: 600; display: block; }
-  .model-desc { font-size: 11px; display: block; }
-
-  /* ── Toggle switch ──────────────────────────────────────── */
-  .toggle-field { margin-bottom: 20px; }
-
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-
+  /* ── Toggle ───────────────────────────────────────────────── */
   .toggle-btn {
     width: 36px;
     height: 20px;
@@ -482,15 +558,41 @@
 
   .toggle-btn.on .toggle-thumb { transform: translateX(16px); }
 
-  /* ── Provider toggle ────────────────────────────────────── */
-  .provider-toggle {
+  /* ── Model toggle ─────────────────────────────────────────── */
+  .model-toggle { display: flex; gap: 8px; }
+
+  .model-btn {
+    flex: 1;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
     display: flex;
-    gap: 6px;
+    flex-direction: column;
+    gap: 3px;
   }
+
+  .model-btn.selected {
+    border-color: var(--accent);
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  }
+
+  .model-btn:not(.selected):hover { border-color: var(--border-hover); color: var(--text); }
+
+  .model-name { font-size: 13px; font-weight: 600; display: block; }
+  .model-sub  { font-size: 11px; display: block; }
+
+  /* ── Provider toggle ──────────────────────────────────────── */
+  .provider-toggle { display: flex; gap: 6px; }
 
   .provider-btn {
     flex: 1;
-    padding: 8px 10px;
+    padding: 9px 10px;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -509,23 +611,31 @@
     background: color-mix(in srgb, var(--accent) 8%, var(--bg));
   }
 
-  .provider-btn:not(.selected):hover {
-    border-color: var(--border-hover);
-    color: var(--text);
-  }
+  .provider-btn:not(.selected):hover { border-color: var(--border-hover); color: var(--text); }
 
   .provider-name { font-size: 12px; font-weight: 600; display: block; }
-  .provider-desc { font-size: 10px; display: block; }
+  .provider-sub  { font-size: 10px; display: block; }
 
-  /* ── OpenAI voice grid ──────────────────────────────────── */
-  .voice-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  /* ── Info box ─────────────────────────────────────────────── */
+  .info-box {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
   }
 
+  .info-box strong { color: var(--text-muted); }
+  .info-box em { color: var(--accent); font-style: normal; }
+
+  /* ── OpenAI voice grid ────────────────────────────────────── */
+  .voice-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+
   .voice-btn {
-    padding: 5px 12px;
+    padding: 5px 14px;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -542,21 +652,20 @@
     background: color-mix(in srgb, var(--accent) 8%, var(--bg));
   }
 
-  .voice-btn:not(.selected):hover {
-    border-color: var(--border-hover);
-    color: var(--text);
-  }
+  .voice-btn:not(.selected):hover { border-color: var(--border-hover); color: var(--text); }
 
-  /* ── Actions ────────────────────────────────────────────── */
-  .dialog-actions {
+  /* ── Footer ───────────────────────────────────────────────── */
+  .footer {
+    grid-column: 2;
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 8px;
+    padding: 16px 28px 20px;
+    border-top: 1px solid var(--border);
   }
 
   .btn-cancel {
-    padding: 9px 16px;
+    padding: 8px 16px;
     background: transparent;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -569,7 +678,7 @@
   .btn-cancel:hover { color: var(--text); border-color: var(--border-hover); }
 
   .btn-save {
-    padding: 9px 20px;
+    padding: 8px 20px;
     background: var(--accent);
     border: none;
     border-radius: 8px;
@@ -582,4 +691,25 @@
 
   .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn-save:not(:disabled):hover { opacity: 0.9; }
+
+  /* ── Close button ─────────────────────────────────────────── */
+  .close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .close-btn:hover { background: var(--surface-hover); color: var(--text); }
 </style>
