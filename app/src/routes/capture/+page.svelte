@@ -12,11 +12,19 @@
   onMount(() => {
     inputEl?.focus();
 
-    // Close when focus leaves the window
+    function onKeydown(e: KeyboardEvent) {
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+    }
+    window.addEventListener("keydown", onKeydown);
+
     const unlisten = appWindow.onFocusChanged(({ payload: focused }) => {
       if (!focused) close();
     });
-    return () => unlisten.then((fn) => fn());
+
+    return () => {
+      window.removeEventListener("keydown", onKeydown);
+      unlisten.then((fn) => fn());
+    };
   });
 
   async function submit() {
@@ -33,7 +41,6 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") { e.preventDefault(); close(); }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   }
 </script>
@@ -42,8 +49,7 @@
   <div class="capture-header">
     <span class="capture-icon">⬡</span>
     <span class="capture-title">Quick Capture</span>
-    <span class="shortcut-hint">⌘⇧K</span>
-    <button class="close-btn" onclick={close} title="Close (Escape)">✕</button>
+    <span class="shortcut-hint">⌘⇧K · Esc</span>
   </div>
 
   <div class="capture-body">
@@ -51,7 +57,7 @@
       bind:this={inputEl}
       bind:value={text}
       onkeydown={handleKeydown}
-      placeholder="Capture a commitment, thought, or task…"
+      placeholder="What's on your mind…"
       rows={3}
       spellcheck={false}
     ></textarea>
@@ -71,20 +77,12 @@
       >Note</button>
     </div>
     <button class="submit-btn" onclick={submit} disabled={!text.trim()}>
-      Save → Enter
+      Save
     </button>
   </div>
 </div>
 
 <style>
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    background: transparent;
-    overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
-
   .capture-shell {
     width: 100vw;
     height: 100vh;
@@ -108,7 +106,7 @@
   }
 
   .capture-icon {
-    font-size: 16px;
+    font-size: 15px;
     color: #e8a020;
     line-height: 1;
   }
@@ -124,29 +122,6 @@
     font-size: 10px;
     color: #4a5168;
     letter-spacing: 0.04em;
-  }
-
-  .close-btn {
-    width: 20px;
-    height: 20px;
-    border: none;
-    background: transparent;
-    color: #4a5168;
-    font-size: 11px;
-    cursor: pointer;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 0.15s, background 0.15s;
-    -webkit-app-region: no-drag;
-    padding: 0;
-    line-height: 1;
-  }
-
-  .close-btn:hover {
-    color: #c8cdd8;
-    background: #2a3145;
   }
 
   .capture-body {
@@ -206,7 +181,7 @@
   }
 
   .submit-btn {
-    padding: 4px 12px;
+    padding: 4px 16px;
     border: none;
     border-radius: 6px;
     background: #e8a020;
