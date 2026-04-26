@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { emit } from "@tauri-apps/api/event";
+  import { emit, listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
 
   let text = $state("");
@@ -10,23 +10,27 @@
   const appWindow = getCurrentWindow();
 
   onMount(() => {
+    const unlistens: Array<() => void> = [];
+
+    // Rust emits this when the shortcut shows the window — focus the textarea
+    listen<void>("capture-opened", () => {
+      text = "";
+      requestAnimationFrame(() => inputEl?.focus());
+    }).then(fn => unlistens.push(fn));
+
+    // Hide when window loses focus (click away)
+    appWindow.onFocusChanged(({ payload: focused }) => {
+      if (!focused) close();
+    }).then(fn => unlistens.push(fn));
+
     function onKeydown(e: KeyboardEvent) {
       if (e.key === "Escape") { e.preventDefault(); close(); }
     }
     window.addEventListener("keydown", onKeydown);
 
-    // Focus textarea every time the window becomes visible (onMount fires while hidden)
-    const unlisten = appWindow.onFocusChanged(({ payload: focused }) => {
-      if (focused) {
-        setTimeout(() => inputEl?.focus(), 50);
-      } else {
-        close();
-      }
-    });
-
     return () => {
       window.removeEventListener("keydown", onKeydown);
-      unlisten.then((fn) => fn());
+      unlistens.forEach(fn => fn());
     };
   });
 

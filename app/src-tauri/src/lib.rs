@@ -22,6 +22,7 @@ pub fn run() {
                             } else {
                                 let _ = win.show();
                                 let _ = win.set_focus();
+                                let _ = win.emit("capture-opened", ());
                             }
                         }
                     }
