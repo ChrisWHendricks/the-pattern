@@ -11,7 +11,7 @@
     { label: "Notes", icon: "◻", href: "/notes", available: true },
     { label: "Journal", icon: "◫", href: "/journal", available: false },
     { label: "Shadows", icon: "◑", href: "/shadows", available: false },
-    { label: "Focus", icon: "◎", href: "/focus", available: false },
+    { label: "Focus", icon: "◎", href: "/focus", available: true },
   ];
 
   function isActive(href: string) {

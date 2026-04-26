@@ -160,6 +160,50 @@ JSON array of Chris's commitments:`,
   }
 }
 
+const FOCUS_SYSTEM_PROMPT = `You are Oberon in Focus Mode — a distraction-free work partner helping Chris complete one specific task.
+
+Rules:
+- Be ultra-concise. One clear thought per message.
+- When first given a task: immediately output a numbered breakdown of 3-6 concrete steps. No preamble, no "Sure!" — just the steps.
+- During work: answer blockers, keep him on track, celebrate subtask completions briefly.
+- If he seems distracted or stuck: name the exact next action.
+- Do NOT discuss anything outside the current task.
+- Do NOT ask clarifying questions before giving the breakdown — just break it down and start.`;
+
+export async function* streamFocusChat(
+  apiKey: string,
+  task: string,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  subtasks: string[] = [],
+  pomodoroCount = 0
+): AsyncGenerator<string> {
+  const client = createClient(apiKey);
+
+  let system = FOCUS_SYSTEM_PROMPT + `\n\nCurrent task: **${task}**`;
+  if (subtasks.length > 0) {
+    system += `\n\nTask breakdown:\n${subtasks.map((s, i) => `${i + 1}. ${s}`).join("\n")}`;
+  }
+  if (pomodoroCount > 0) {
+    system += `\n\nPomodoros completed this session: ${pomodoroCount}`;
+  }
+
+  const stream = client.messages.stream({
+    model: MODELS.sonnet,
+    max_tokens: 512,
+    system,
+    messages,
+  });
+
+  for await (const chunk of stream) {
+    if (
+      chunk.type === "content_block_delta" &&
+      chunk.delta.type === "text_delta"
+    ) {
+      yield chunk.delta.text;
+    }
+  }
+}
+
 export function getMorningTrigger(openCommitmentsSummary?: string): string {
   const hour = new Date().getHours();
   const commitmentContext = openCommitmentsSummary
