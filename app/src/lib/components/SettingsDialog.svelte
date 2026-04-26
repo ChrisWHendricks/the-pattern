@@ -18,6 +18,8 @@
   let draftElevenLabsVoiceId = $state(settings.elevenLabsVoiceId);
   let draftOpenaiKey = $state(settings.openaiKey);
   let draftOpenaiVoice = $state(settings.openaiVoice);
+  let draftSystemVoiceName = $state(settings.systemVoiceName);
+  let systemVoices = $state<SpeechSynthesisVoice[]>([]);
   let showKey = $state(false);
   let showElKey = $state(false);
   let showOaiKey = $state(false);
@@ -30,14 +32,22 @@
     { id: "voice",  icon: "◎", label: "Voice" },
   ];
 
+  function loadVoices() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const all = window.speechSynthesis.getVoices();
+    systemVoices = all.filter((v) => v.lang.startsWith("en"));
+  }
+
   onMount(() => {
     if (!draftVaultPath) {
       homeDir().then((home) => {
         draftVaultPath = `${home}Documents/ThePattern/notes`;
       });
     }
-    // If no API key yet, start on Oberon tab
     if (!settings.hasApiKey) tab = "oberon";
+    loadVoices();
+    window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
+    return () => window.speechSynthesis?.removeEventListener("voiceschanged", loadVoices);
   });
 
   function save() {
@@ -53,6 +63,7 @@
       draftElevenLabsVoiceId.trim(),
       draftOpenaiKey.trim(),
       draftOpenaiVoice,
+      draftSystemVoiceName,
     );
   }
 
@@ -229,10 +240,27 @@
           </div>
 
           {#if draftTtsProvider === "system"}
-            <div class="info-box">
-              For the most natural voice, download a <strong>Premium</strong> voice in
-              <em>System Settings → Accessibility → Spoken Content → System Voice → Manage Voices</em>.
-              Try <strong>Ava (Premium)</strong> or <strong>Evan (Premium)</strong> — both are free and neural-quality.
+            <div class="divider"></div>
+            <div class="setting-block">
+              <p class="block-label">Voice</p>
+              <p class="block-desc">
+                Choose from installed English voices. To add better voices, go to
+                <em>System Settings → Accessibility → Spoken Content → System Voice → Manage Voices</em>
+                and download <strong>Ava</strong> or <strong>Evan</strong> (Premium tier).
+              </p>
+              {#if systemVoices.length > 0}
+                <select
+                  class="voice-select"
+                  bind:value={draftSystemVoiceName}
+                >
+                  <option value="">Auto (best available)</option>
+                  {#each systemVoices as v}
+                    <option value={v.name}>{v.name}</option>
+                  {/each}
+                </select>
+              {:else}
+                <div class="info-box">Voice list unavailable — voices load after first TTS playback.</div>
+              {/if}
             </div>
 
           {:else if draftTtsProvider === "elevenlabs"}
@@ -616,6 +644,24 @@
   .provider-name { font-size: 12px; font-weight: 600; display: block; }
   .provider-sub  { font-size: 10px; display: block; }
 
+  /* ── Voice select ────────────────────────────────────────── */
+  .voice-select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--font-sans);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    appearance: auto;
+  }
+
+  .voice-select:focus { border-color: var(--accent); }
+
   /* ── Info box ─────────────────────────────────────────────── */
   .info-box {
     margin-top: 16px;
@@ -627,9 +673,6 @@
     color: var(--text-dim);
     line-height: 1.6;
   }
-
-  .info-box strong { color: var(--text-muted); }
-  .info-box em { color: var(--accent); font-style: normal; }
 
   /* ── OpenAI voice grid ────────────────────────────────────── */
   .voice-grid { display: flex; flex-wrap: wrap; gap: 6px; }

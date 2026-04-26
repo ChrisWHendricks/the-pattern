@@ -18,6 +18,7 @@ function createSettings() {
   let elevenLabsVoiceId = $state(ls("oberon_elevenlabs_voice_id") || "21m00Tcm4TlvDq8ikWAM");
   let openaiKey = $state(ls("oberon_openai_key"));
   let openaiVoice = $state(ls("oberon_openai_voice") || "nova");
+  let systemVoiceName = $state(ls("oberon_system_voice"));
   let showSettingsDialog = $state(false);
 
   return {
@@ -31,6 +32,7 @@ function createSettings() {
     get elevenLabsVoiceId() { return elevenLabsVoiceId; },
     get openaiKey() { return openaiKey; },
     get openaiVoice() { return openaiVoice; },
+    get systemVoiceName() { return systemVoiceName; },
     get showSettingsDialog() { return showSettingsDialog; },
     get hasApiKey() { return apiKey.length > 0; },
 
@@ -45,6 +47,7 @@ function createSettings() {
       newElevenLabsVoiceId: string,
       newOpenaiKey: string,
       newOpenaiVoice: string,
+      newSystemVoiceName: string,
     ) {
       apiKey = newKey;
       model = newModel;
@@ -56,6 +59,7 @@ function createSettings() {
       elevenLabsVoiceId = newElevenLabsVoiceId;
       openaiKey = newOpenaiKey;
       openaiVoice = newOpenaiVoice;
+      systemVoiceName = newSystemVoiceName;
       if (typeof localStorage !== "undefined") {
         localStorage.setItem("oberon_api_key", newKey);
         localStorage.setItem("oberon_model", newModel);
@@ -67,6 +71,7 @@ function createSettings() {
         localStorage.setItem("oberon_elevenlabs_voice_id", newElevenLabsVoiceId);
         localStorage.setItem("oberon_openai_key", newOpenaiKey);
         localStorage.setItem("oberon_openai_voice", newOpenaiVoice);
+        localStorage.setItem("oberon_system_voice", newSystemVoiceName);
       }
       showSettingsDialog = false;
     },

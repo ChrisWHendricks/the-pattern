@@ -81,14 +81,14 @@ function createVoiceStore() {
     utterance.volume = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
-    const preferred =
-      voices.find((v) => v.name === "Ava (Premium)") ??
-      voices.find((v) => v.name === "Evan (Premium)") ??
-      voices.find((v) => v.name === "Ava (Enhanced)") ??
-      voices.find((v) => v.name === "Evan (Enhanced)") ??
-      voices.find((v) => v.name === "Samantha") ??
-      voices.find((v) => v.lang.startsWith("en-")) ??
-      null;
+    const stored = settings.systemVoiceName;
+    const preferred = stored
+      ? (voices.find((v) => v.name === stored) ?? null)
+      : (voices.find((v) => v.name === "Ava") ??
+         voices.find((v) => v.name === "Evan") ??
+         voices.find((v) => v.name === "Samantha") ??
+         voices.find((v) => v.lang.startsWith("en-")) ??
+         null);
     if (preferred) utterance.voice = preferred;
 
     utterance.onstart = () => { isSpeaking = true; };
