@@ -1,7 +1,7 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { settings } from "$lib/stores/settings.svelte";
   import { MODELS, type ModelKey } from "$lib/claude";
-
   import { homeDir } from "@tauri-apps/api/path";
 
   let draftKey = $state(settings.apiKey);
@@ -9,8 +9,8 @@
   let draftVaultPath = $state(settings.vaultPath);
   let showKey = $state(false);
 
-  // Populate default vault path if empty
-  $effect(() => {
+  // Only pre-fill the default path once on open, never re-fill when cleared
+  onMount(() => {
     if (!draftVaultPath) {
       homeDir().then((home) => {
         draftVaultPath = `${home}Documents/ThePattern/notes`;
@@ -94,13 +94,14 @@
 
     <div class="field">
       <label for="vault-path">Notes Vault Path</label>
-      <input
+      <textarea
         id="vault-path"
-        type="text"
-        placeholder="~/Documents/ThePattern/notes"
+        class="path-input"
+        placeholder="/Users/you/Documents/ThePattern/notes"
         bind:value={draftVaultPath}
         spellcheck={false}
-      />
+        rows={2}
+      ></textarea>
       <div class="field-hint">
         Folder where your markdown notes are stored. Use your Google Drive path to sync across devices.
       </div>
@@ -216,6 +217,27 @@
 
   .show-btn:hover {
     color: var(--text);
+  }
+
+  .path-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s;
+    word-break: break-all;
+  }
+
+  .path-input:focus {
+    border-color: var(--accent);
   }
 
   .field-hint {
