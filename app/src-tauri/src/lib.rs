@@ -29,6 +29,31 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+/// Speak text using macOS `say` command. Awaits completion so the JS caller
+/// can track isSpeaking state accurately.
+#[tauri::command]
+async fn speak_text(text: String, voice: String) {
+    tokio::task::spawn_blocking(move || {
+        let mut cmd = std::process::Command::new("say");
+        if !voice.is_empty() {
+            cmd.arg("-v").arg(&voice);
+        }
+        cmd.arg("--").arg(&text);
+        cmd.status().ok();
+    })
+    .await
+    .ok();
+}
+
+/// Kill any running `say` process to stop mid-speech.
+#[tauri::command]
+fn stop_speaking_native() {
+    std::process::Command::new("pkill")
+        .args(["-x", "say"])
+        .spawn()
+        .ok();
+}
+
 /// Returns all installed English voices via NSSpeechSynthesizer.
 /// Unlike speechSynthesis.getVoices() in WKWebView, this includes Premium voices.
 #[tauri::command]
@@ -166,7 +191,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, list_system_voices])
+        .invoke_handler(tauri::generate_handler![greet, list_system_voices, speak_text, stop_speaking_native])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

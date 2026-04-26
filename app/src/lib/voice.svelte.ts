@@ -1,4 +1,5 @@
 import { settings } from "$lib/stores/settings.svelte";
+import { invoke } from "@tauri-apps/api/core";
 
 function stripMarkdown(text: string): string {
   return text
@@ -76,31 +77,24 @@ function createVoiceStore() {
     interim = "";
   }
 
-  function speakSystem(text: string) {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.92;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    const voices = window.speechSynthesis.getVoices();
-    const stored = settings.systemVoiceName;
-    const preferred = stored
-      ? (voices.find((v) => v.name === stored) ?? null)
-      : (voices.find((v) => v.name === "Ava") ??
-         voices.find((v) => v.name === "Evan") ??
-         voices.find((v) => v.name === "Samantha") ??
-         voices.find((v) => v.lang.startsWith("en-")) ??
-         null);
-    if (preferred) utterance.voice = preferred;
-
-    utterance.onstart = () => { isSpeaking = true; };
-    utterance.onend = () => { isSpeaking = false; };
-    utterance.onerror = () => { isSpeaking = false; };
-
-    window.speechSynthesis.speak(utterance);
+  async function speakSystem(text: string) {
+    const voice = settings.systemVoiceName || "Ava";
+    isSpeaking = true;
+    try {
+      // invoke awaits until `say` finishes, so isSpeaking tracks correctly.
+      // Uses the macOS `say` command — works with all installed voices including Premium.
+      await invoke("speak_text", { text, voice });
+    } catch {
+      // Tauri not available (e.g. browser dev) — fall back to Web Speech API
+      window.speechSynthesis?.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.92;
+      utterance.onend = () => { isSpeaking = false; };
+      utterance.onerror = () => { isSpeaking = false; };
+      window.speechSynthesis?.speak(utterance);
+      return;
+    }
+    isSpeaking = false;
   }
 
   async function fetchElevenLabs(text: string): Promise<Blob> {
@@ -162,7 +156,7 @@ function createVoiceStore() {
         playBlob(await fetchElevenLabs(clean));
       } catch (e) {
         console.error("ElevenLabs TTS failed, falling back to system:", e);
-        speakSystem(clean);
+        await speakSystem(clean);
       }
       return;
     }
@@ -172,17 +166,18 @@ function createVoiceStore() {
         playBlob(await fetchOpenAI(clean));
       } catch (e) {
         console.error("OpenAI TTS failed, falling back to system:", e);
-        speakSystem(clean);
+        await speakSystem(clean);
       }
       return;
     }
 
-    speakSystem(clean);
+    await speakSystem(clean);
   }
 
   function stopSpeaking() {
     if (currentAudio) { currentAudio.pause(); currentAudio = null; }
     window.speechSynthesis?.cancel();
+    invoke("stop_speaking_native").catch(() => {});
     isSpeaking = false;
   }
 
