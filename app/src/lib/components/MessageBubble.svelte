@@ -3,7 +3,7 @@
   import type { Message } from "$lib/stores/conversation.svelte";
 
   type Props = {
-    message: Message | { id: string; role: "assistant"; content: string; timestamp?: Date };
+    message: Message | { id: string; role: "assistant"; content: string; timestamp?: Date; vaultCitations?: string[] };
     streaming?: boolean;
   };
 
@@ -51,6 +51,14 @@
         {/if}
       </div>
     </div>
+    {#if message.vaultCitations && message.vaultCitations.length > 0}
+      <div class="citations">
+        <span class="citations-label">from vault:</span>
+        {#each message.vaultCitations as title, i}
+          <span class="citation">{title}</span>{#if i < message.vaultCitations.length - 1}<span class="citation-sep">,</span>{/if}
+        {/each}
+      </div>
+    {/if}
     {#if message.timestamp && !streaming}
       <div class="timestamp">{timeStr()}</div>
     {/if}
@@ -189,6 +197,31 @@
   @keyframes blink {
     0%, 100% { opacity: 1; }
     50% { opacity: 0; }
+  }
+
+  .citations {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px;
+    padding: 0 2px;
+    margin-top: 2px;
+  }
+
+  .citations-label {
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .citation {
+    font-size: 10px;
+    color: var(--accent);
+    opacity: 0.7;
+  }
+
+  .citation-sep {
+    font-size: 10px;
+    color: var(--text-dim);
   }
 
   .timestamp {

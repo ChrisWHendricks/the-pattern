@@ -5,24 +5,27 @@ import {
   looksLikeCommitmentContent,
   generateSessionSummary,
 } from "$lib/claude";
+import { searchNotes, buildVaultContext } from "$lib/search";
 import { settings } from "$lib/stores/settings.svelte";
 import { commitments } from "$lib/stores/commitments.svelte";
 import { sessionStore } from "$lib/stores/sessions.svelte";
+import { vault } from "$lib/stores/vault.svelte";
 
 export type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  vaultCitations?: string[]; // note titles used to answer this message
 };
 
 const MAX_CONTEXT_MESSAGES = 30;
 
 function createConversation() {
-  const todaySession = sessionStore.todaySession();
-  let messages = $state<Message[]>(todaySession.messages ?? []);
+  let messages = $state<Message[]>(sessionStore.todaySession().messages ?? []);
   let streamingContent = $state("");
   let isStreaming = $state(false);
+  let isSearching = $state(false);
   let isSummarizing = $state(false);
   let error = $state<string | null>(null);
   let extracting = $state(false);
@@ -50,6 +53,21 @@ function createConversation() {
     if (isStreaming || !settings.hasApiKey) return;
 
     error = null;
+
+    // Search vault for relevant context
+    isSearching = true;
+    let vaultContext = "";
+    let citedNotes: string[] = [];
+    try {
+      const results = searchNotes(content, vault.searchIndex);
+      if (results.length > 0) {
+        vaultContext = buildVaultContext(results);
+        citedNotes = results.map((r) => r.title);
+      }
+    } finally {
+      isSearching = false;
+    }
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -65,7 +83,14 @@ function createConversation() {
     let fullReply = "";
     try {
       const memories = sessionStore.recentMemories(4);
-      const stream = streamChat(settings.apiKey, apiMessages(), settings.model, memories);
+      const stream = streamChat(
+        settings.apiKey,
+        apiMessages(),
+        settings.model,
+        memories,
+        vaultContext
+      );
+
       for await (const chunk of stream) {
         streamingContent += chunk;
         fullReply += chunk;
@@ -76,6 +101,7 @@ function createConversation() {
         role: "assistant",
         content: fullReply,
         timestamp: new Date(),
+        vaultCitations: citedNotes.length > 0 ? citedNotes : undefined,
       });
       sessionStore.saveMessages(messages);
 
@@ -90,7 +116,21 @@ function createConversation() {
   }
 
   async function startMorningBriefing() {
-    await send(getMorningTrigger(commitments.openSummary()));
+    // Include vault context in morning briefing too
+    const vaultResults = searchNotes(
+      "today priorities commitments tasks focus",
+      vault.searchIndex,
+      3
+    );
+    const vaultContext = buildVaultContext(vaultResults);
+    const trigger = getMorningTrigger(commitments.openSummary());
+
+    // Inject vault context into the morning trigger if notes exist
+    const fullTrigger = vaultContext
+      ? `${trigger}\n\nAdditional vault context:\n${vaultContext}`
+      : trigger;
+
+    await send(fullTrigger);
   }
 
   async function startNewSession() {
@@ -106,12 +146,11 @@ function createConversation() {
       );
       if (summary) sessionStore.saveSummary(currentSession.id, summary);
     } catch {
-      // Non-critical — start new session anyway
+      // Non-critical
     } finally {
       isSummarizing = false;
     }
 
-    // Force a new session date key by pushing a fresh session
     sessionStore.saveMessages([]);
     messages = [];
     streamingContent = "";
@@ -122,6 +161,7 @@ function createConversation() {
     get messages() { return messages; },
     get streamingContent() { return streamingContent; },
     get isStreaming() { return isStreaming; },
+    get isSearching() { return isSearching; },
     get isSummarizing() { return isSummarizing; },
     get extracting() { return extracting; },
     get error() { return error; },

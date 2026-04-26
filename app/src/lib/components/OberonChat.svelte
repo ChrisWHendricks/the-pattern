@@ -1,6 +1,7 @@
 <script lang="ts">
   import { conversation } from "$lib/stores/conversation.svelte";
   import { settings } from "$lib/stores/settings.svelte";
+  import { vault } from "$lib/stores/vault.svelte";
   import MessageBubble from "./MessageBubble.svelte";
 
   let input = $state("");
@@ -122,9 +123,13 @@
         </button>
       </div>
       <div class="input-hint">
-        Enter to send · Shift+Enter for newline
-        {#if conversation.sessionCount > 1}
-          · {conversation.sessionCount} sessions in memory
+        {#if conversation.isSearching}
+          Searching vault…
+        {:else}
+          Enter to send · Shift+Enter for newline
+          {#if vault.indexSize > 0}
+            · {vault.indexSize} notes indexed
+          {/if}
         {/if}
       </div>
     </div>

@@ -28,13 +28,18 @@ Your roles:
 Tone: Direct. Warm but not soft. You have opinions. Push back when warranted.
 Format: Use markdown. Keep responses focused — don't pad. One clear thing at a time.`;
 
-export function buildSystemPrompt(memories: string[] = []): string {
-  if (memories.length === 0) return BASE_SYSTEM_PROMPT;
-  return `${BASE_SYSTEM_PROMPT}
+export function buildSystemPrompt(memories: string[] = [], vaultContext = ""): string {
+  let prompt = BASE_SYSTEM_PROMPT;
 
----
-Recent session memories (use these to maintain continuity — don't recite them back, just use them as context):
-${memories.join("\n")}`;
+  if (memories.length > 0) {
+    prompt += `\n\n---\nRecent session memories (maintain continuity — don't recite, just use as context):\n${memories.join("\n")}`;
+  }
+
+  if (vaultContext) {
+    prompt += `\n\n---\n${vaultContext}`;
+  }
+
+  return prompt;
 }
 
 export function createClient(apiKey: string): Anthropic {
@@ -45,14 +50,15 @@ export async function* streamChat(
   apiKey: string,
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   model: ModelKey = "haiku",
-  memories: string[] = []
+  memories: string[] = [],
+  vaultContext = ""
 ): AsyncGenerator<string> {
   const client = createClient(apiKey);
 
   const stream = client.messages.stream({
     model: MODELS[model],
     max_tokens: 1024,
-    system: buildSystemPrompt(memories),
+    system: buildSystemPrompt(memories, vaultContext),
     messages,
   });
 
