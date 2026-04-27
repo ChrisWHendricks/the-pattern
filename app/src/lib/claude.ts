@@ -39,6 +39,7 @@ The Pattern app capabilities you can reference and invoke:
 - **Voice I/O**: microphone for voice input, TTS for voice output (configured in Settings → Voice)
 
 Actions you can perform — use tool calls, never say you "can't do" these:
+- Add a commitment, list open commitments, mark a commitment complete
 - Create a Shadow, list Shadows, assign an Inscription to a Shadow
 - Create a defect or feature request, list issues, update an issue's status
 
@@ -76,6 +77,35 @@ export function buildSystemPrompt(
 // ── Tool definitions ──────────────────────────────────────────────────────────
 
 export const APP_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "add_commitment",
+    description: "Add a commitment — something Chris has promised or agreed to do. Use this whenever Chris mentions he needs to follow up with someone, said he'd do something, or you want to capture an action item from the conversation.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "What Chris will do" },
+        person: { type: "string", description: "Who asked, is involved, or will be affected (omit if unknown)" },
+        due: { type: "string", description: "Deadline in natural language, e.g. 'Friday', 'end of week' (omit if unknown)" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "list_commitments",
+    description: "List Chris's open (incomplete) commitments. Use during briefings, check-ins, or when he asks what he still owes people.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "complete_commitment",
+    description: "Mark a commitment as completed by fuzzy-matching its text.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "The commitment text or a close match" },
+      },
+      required: ["text"],
+    },
+  },
   {
     name: "create_shadow",
     description: "Create a new Shadow (collection/notebook) in the user's vault.",
@@ -311,6 +341,10 @@ export type ExtractedCommitment = {
   due?: string | null;
 };
 
+function stripJsonFences(text: string): string {
+  return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+}
+
 // ── Brain Dump Triage ─────────────────────────────────────────────────────────
 
 export type TriageCategory = "inscription" | "commitment" | "chronicle" | "discard";
@@ -354,7 +388,7 @@ JSON:`,
 
   const raw = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(stripJsonFences(raw));
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return items.map((text) => ({ text, category: "discard" as TriageCategory, reason: "parse error" }));
@@ -408,7 +442,7 @@ JSON array of Chris's commitments:`,
 
   const raw = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(stripJsonFences(raw));
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];

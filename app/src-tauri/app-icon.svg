@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="70%" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#1e1835"/>
+      <stop offset="100%" stop-color="#09071a"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e8a020" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#e8a020" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="nodeBloom" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="centerBloom" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- Ambient glow -->
+  <circle cx="256" cy="256" r="230" fill="url(#glow)"/>
+
+  <!-- Outer ring: 6 nodes at radius 158 (hex positions) -->
+  <!-- 0°   → (414, 256)  -->
+  <!-- 60°  → (335, 119)  -->
+  <!-- 120° → (177, 119)  -->
+  <!-- 180° → ( 98, 256)  -->
+  <!-- 240° → (177, 393)  -->
+  <!-- 300° → (335, 393)  -->
+
+  <!-- Spokes: center → each outer node -->
+  <line x1="256" y1="256" x2="414" y2="256" stroke="#e8a020" stroke-width="7" stroke-opacity="0.45" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="335" y2="119" stroke="#e8a020" stroke-width="7" stroke-opacity="0.45" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="177" y2="119" stroke="#e8a020" stroke-width="7" stroke-opacity="0.45" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2=" 98" y2="256" stroke="#e8a020" stroke-width="7" stroke-opacity="0.45" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="177" y2="393" stroke="#e8a020" stroke-width="7" stroke-opacity="0.45" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="335" y2="393" stroke="#e8a020" stroke-width="7" stroke-opacity="0.45" stroke-linecap="round"/>
+
+  <!-- Outer hexagon ring (connecting adjacent nodes) -->
+  <polygon points="414,256 335,119 177,119 98,256 177,393 335,393"
+    fill="none" stroke="#e8a020" stroke-width="5" stroke-opacity="0.32" stroke-linejoin="round"/>
+
+  <!-- Inner hexagon at radius 80 (rotated 30°) -->
+  <!-- 30°  → (325, 216)  -->
+  <!-- 90°  → (256, 176)  -->
+  <!-- 150° → (187, 216)  -->
+  <!-- 210° → (187, 296)  -->
+  <!-- 270° → (256, 336)  -->
+  <!-- 330° → (325, 296)  -->
+  <polygon points="325,216 256,176 187,216 187,296 256,336 325,296"
+    fill="none" stroke="#a78bfa" stroke-width="3.5" stroke-opacity="0.38" stroke-linejoin="round"/>
+
+  <!-- Outer nodes (6) -->
+  <circle cx="414" cy="256" r="19" fill="#e8a020" filter="url(#nodeBloom)"/>
+  <circle cx="335" cy="119" r="19" fill="#e8a020" filter="url(#nodeBloom)"/>
+  <circle cx="177" cy="119" r="19" fill="#e8a020" filter="url(#nodeBloom)"/>
+  <circle cx=" 98" cy="256" r="19" fill="#e8a020" filter="url(#nodeBloom)"/>
+  <circle cx="177" cy="393" r="19" fill="#e8a020" filter="url(#nodeBloom)"/>
+  <circle cx="335" cy="393" r="19" fill="#e8a020" filter="url(#nodeBloom)"/>
+
+  <!-- Inner ring nodes (violet, smaller) -->
+  <circle cx="325" cy="216" r="9" fill="#a78bfa" opacity="0.75"/>
+  <circle cx="256" cy="176" r="9" fill="#a78bfa" opacity="0.75"/>
+  <circle cx="187" cy="216" r="9" fill="#a78bfa" opacity="0.75"/>
+  <circle cx="187" cy="296" r="9" fill="#a78bfa" opacity="0.75"/>
+  <circle cx="256" cy="336" r="9" fill="#a78bfa" opacity="0.75"/>
+  <circle cx="325" cy="296" r="9" fill="#a78bfa" opacity="0.75"/>
+
+  <!-- Center node: outer glow ring + solid core -->
+  <circle cx="256" cy="256" r="42" fill="#e8a020" filter="url(#centerBloom)"/>
+  <circle cx="256" cy="256" r="30" fill="#ffd168"/>
+</svg>

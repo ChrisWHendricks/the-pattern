@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { page } from "$app/stores";
   import { marked } from "marked";
   import { focusStore } from "$lib/stores/focus.svelte";
   import { settings } from "$lib/stores/settings.svelte";
@@ -8,6 +10,11 @@
   import type { IndexedInscription } from "$lib/search";
 
   let taskInput = $state("");
+
+  onMount(() => {
+    const task = $page.url.searchParams.get("task");
+    if (task && focusStore.phase === "idle") taskInput = task;
+  });
   let chatInput = $state("");
   let listEl = $state<HTMLElement | null>(null);
   let inputEl = $state<HTMLTextAreaElement | null>(null);

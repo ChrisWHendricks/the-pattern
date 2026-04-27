@@ -8,7 +8,9 @@
   import CommitmentList from "./CommitmentList.svelte";
 
   const navItems = [
+    { label: "Cockpit", icon: "⊙", href: "/cockpit", available: true },
     { label: "Oberon", icon: "◈", href: "/", available: true },
+    { label: "Top 3", icon: "≡", href: "/top3", available: true },
     { label: "Inscriptions", icon: "◻", href: "/inscriptions", available: true },
     { label: "Chronicles", icon: "◫", href: "/chronicles", available: true },
     { label: "Shadows", icon: "◑", href: "/shadows", available: true },

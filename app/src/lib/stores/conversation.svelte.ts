@@ -76,6 +76,29 @@ function createConversation() {
 
   async function executeAppTool(name: string, input: Record<string, unknown>): Promise<string> {
     switch (name) {
+      case "add_commitment": {
+        commitments.add({
+          text: input.text as string,
+          person: (input.person as string | undefined) ?? undefined,
+          due: (input.due as string | undefined) ?? null,
+        });
+        return `Commitment added: "${input.text}"${input.person ? ` (for ${input.person})` : ""}${input.due ? ` — due ${input.due}` : ""}`;
+      }
+
+      case "list_commitments": {
+        return commitments.openSummary();
+      }
+
+      case "complete_commitment": {
+        const query = (input.text as string).toLowerCase();
+        const match = commitments.open.find(
+          (c) => c.text.toLowerCase().includes(query) || query.includes(c.text.toLowerCase())
+        );
+        if (!match) return `No open commitment matching "${input.text}" found.`;
+        commitments.complete(match.id);
+        return `Marked complete: "${match.text}"`;
+      }
+
       case "create_shadow": {
         if (!settings.vaultPath) return "No vault path configured. Set one in Settings first.";
         const shadow = shadowsStore.createShadow(

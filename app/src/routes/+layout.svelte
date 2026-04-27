@@ -74,25 +74,25 @@
   }
 
   :global(:root) {
-    --bg: #0c0f18;
-    --sidebar-bg: #0a0d14;
-    --surface: #131720;
-    --surface-hover: #1c2232;
-    --border: #1e2535;
-    --border-hover: #2e3d55;
+    --bg: #0e0c1a;
+    --sidebar-bg: #0b0918;
+    --surface: #181428;
+    --surface-hover: #231e38;
+    --border: #2e2850;
+    --border-hover: #433c6a;
 
     --accent: #e8a020;
     --accent-dim: color-mix(in srgb, #e8a020 20%, transparent);
 
-    --oberon: #9b8fd4;
-    --oberon-dim: color-mix(in srgb, #9b8fd4 15%, #131720);
+    --oberon: #a78bfa;
+    --oberon-dim: color-mix(in srgb, #a78bfa 15%, #181428);
 
-    --user-bubble: #1a2540;
-    --user-bubble-border: #243354;
+    --user-bubble: #1e1835;
+    --user-bubble-border: #2e2850;
 
-    --text: #dde4f0;
-    --text-muted: #5e718a;
-    --text-dim: #32415a;
+    --text: #e4e0ff;
+    --text-muted: #7a72a8;
+    --text-dim: #4a4572;
 
     --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
     --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
