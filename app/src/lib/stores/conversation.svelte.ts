@@ -14,7 +14,9 @@ import { sessionStore } from "$lib/stores/sessions.svelte";
 import { vault } from "$lib/stores/vault.svelte";
 import { shadowsStore } from "$lib/stores/shadows.svelte";
 import { issuesStore } from "$lib/stores/issues.svelte";
-import { loadChronicleEntry, todayDateStr } from "$lib/vault";
+import { loadChronicleEntry, saveChronicleEntry, todayDateStr } from "$lib/vault";
+import { logrusStore } from "$lib/stores/logrus.svelte";
+import { logrusIcon } from "$lib/logrus";
 
 export type Message = {
   id: string;
@@ -136,6 +138,40 @@ function createConversation() {
         }
         issuesStore.updateStatus(issue.id, input.status as "open" | "in-progress" | "done");
         return `Updated "${issue.title}" → ${input.status}`;
+      }
+
+      case "list_logrus": {
+        if (!settings.vaultPath) return "No vault configured.";
+        await logrusStore.scan();
+        const logrusItems = logrusStore.items;
+        if (logrusItems.length === 0) return "The Logrus is empty — no unprocessed items waiting.";
+        const lines = logrusItems.map(
+          (i) => `${logrusIcon(i)} **${i.filename}** (${i.type})`
+        );
+        return `${logrusItems.length} item${logrusItems.length !== 1 ? "s" : ""} in The Logrus:\n${lines.join("\n")}`;
+      }
+
+      case "read_today_chronicle": {
+        if (!settings.vaultPath) return "No vault configured. Set a vault path in Settings first.";
+        try {
+          const entry = await loadChronicleEntry(settings.vaultPath, todayDateStr());
+          const body = entry.replace(/^#.+\n/m, "").trim();
+          return body || "Today's chronicle exists but is empty — nothing written yet.";
+        } catch {
+          return "Could not read today's chronicle.";
+        }
+      }
+
+      case "append_to_chronicle": {
+        if (!settings.vaultPath) return "No vault configured. Set a vault path in Settings first.";
+        try {
+          const existing = await loadChronicleEntry(settings.vaultPath, todayDateStr());
+          const appended = existing.trimEnd() + "\n\n" + (input.content as string).trim();
+          await saveChronicleEntry(settings.vaultPath, todayDateStr(), appended);
+          return "Added to today's chronicle.";
+        } catch (e) {
+          return `Failed to write to chronicle: ${e instanceof Error ? e.message : String(e)}`;
+        }
       }
 
       default:

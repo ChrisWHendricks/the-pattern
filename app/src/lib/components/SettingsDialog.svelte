@@ -20,6 +20,7 @@
   let draftOpenaiKey = $state(settings.openaiKey);
   let draftOpenaiVoice = $state(settings.openaiVoice);
   let draftSystemVoiceName = $state(settings.systemVoiceName);
+  let draftDevMode = $state(settings.devMode);
   let systemVoiceNames = $state<string[]>([]);
   let showKey = $state(false);
   let showElKey = $state(false);
@@ -65,6 +66,7 @@
       draftOpenaiKey.trim(),
       draftOpenaiVoice,
       draftSystemVoiceName,
+      draftDevMode,
     );
   }
 
@@ -181,6 +183,25 @@
             role="switch"
             aria-checked={draftAutosave}
             aria-label="Toggle autosave"
+          >
+            <span class="toggle-thumb"></span>
+          </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <p class="setting-name">Developer Mode</p>
+            <p class="setting-desc">Shows the defects and feature backlog in the sidebar. For building and debugging the app.</p>
+          </div>
+          <button
+            class="toggle-btn"
+            class:on={draftDevMode}
+            onclick={() => (draftDevMode = !draftDevMode)}
+            role="switch"
+            aria-checked={draftDevMode}
+            aria-label="Toggle developer mode"
           >
             <span class="toggle-thumb"></span>
           </button>

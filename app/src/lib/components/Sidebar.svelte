@@ -4,6 +4,7 @@
   import { settings } from "$lib/stores/settings.svelte";
   import { conversation } from "$lib/stores/conversation.svelte";
   import { commitments } from "$lib/stores/commitments.svelte";
+  import { logrusStore } from "$lib/stores/logrus.svelte";
   import CommitmentList from "./CommitmentList.svelte";
 
   const navItems = [
@@ -12,7 +13,9 @@
     { label: "Chronicles", icon: "◫", href: "/chronicles", available: true },
     { label: "Shadows", icon: "◑", href: "/shadows", available: true },
     { label: "Focus", icon: "◎", href: "/focus", available: true },
+    { label: "Brain Dump", icon: "⟁", href: "/brain-dump", available: true },
     { label: "Artifacts", icon: "◧", href: "/artifacts", available: true },
+    { label: "The Logrus", icon: "⊗", href: "/logrus", available: true },
   ];
 
   function isActive(href: string) {
@@ -44,9 +47,23 @@
         <span class="nav-label">{item.label}</span>
         {#if !item.available}
           <span class="nav-badge">soon</span>
+        {:else if item.href === "/logrus" && logrusStore.items.length > 0}
+          <span class="nav-count">{logrusStore.items.length}</span>
         {/if}
       </button>
     {/each}
+    {#if settings.devMode}
+      <button
+        class="nav-item dev-item"
+        class:active={isActive("/developer")}
+        onclick={() => goto("/developer")}
+        title="Developer — defects & features"
+      >
+        <span class="nav-icon">⬡</span>
+        <span class="nav-label">Developer</span>
+        <span class="nav-badge dev-badge">dev</span>
+      </button>
+    {/if}
   </nav>
 
   <div class="sidebar-section">
@@ -181,6 +198,23 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
+
+  .nav-count {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--oberon) 20%, transparent);
+    color: var(--oberon);
+  }
+
+  .dev-badge {
+    background: color-mix(in srgb, #f59e0b 15%, transparent);
+    color: #f59e0b;
+  }
+
+  .dev-item { opacity: 0.75; }
+  .dev-item:hover, .dev-item.active { opacity: 1; }
 
   .sidebar-section {
     flex: 1;

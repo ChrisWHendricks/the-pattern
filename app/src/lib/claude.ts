@@ -141,6 +141,27 @@ export const APP_TOOLS: Anthropic.Tool[] = [
       required: ["title", "status"],
     },
   },
+  {
+    name: "list_logrus",
+    description: "List items currently in The Logrus (the inbox). These are unprocessed documents — scanned files, PDFs, images — waiting to be claimed into the vault. Use this when the user asks about unprocessed items, their inbox, things waiting to be reviewed, or when doing a daily briefing.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "read_today_chronicle",
+    description: "Read today's chronicle (daily journal entry) from the vault. Use this whenever the user asks about their day, what they wrote today, their daily notes, or anything that might be in today's entry.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "append_to_chronicle",
+    description: "Append text to today's chronicle entry. Use when the user wants to log something, capture a reflection, record a thought, or add anything to their daily journal.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        content: { type: "string", description: "The text to append to today's chronicle" },
+      },
+      required: ["content"],
+    },
+  },
 ];
 
 // ── Streaming ─────────────────────────────────────────────────────────────────
@@ -289,6 +310,58 @@ export type ExtractedCommitment = {
   person?: string;
   due?: string | null;
 };
+
+// ── Brain Dump Triage ─────────────────────────────────────────────────────────
+
+export type TriageCategory = "inscription" | "commitment" | "chronicle" | "discard";
+
+export type TriageItem = {
+  text: string;
+  category: TriageCategory;
+  reason: string;
+};
+
+export async function triageBrainDump(
+  apiKey: string,
+  items: string[]
+): Promise<TriageItem[]> {
+  const client = createClient(apiKey);
+
+  const response = await client.messages.create({
+    model: MODELS.haiku,
+    max_tokens: 1024,
+    messages: [
+      {
+        role: "user",
+        content: `You are helping Chris triage a brain dump — a rapid list of thoughts, todos, ideas, and worries dumped from working memory.
+
+For each item, assign one category:
+- "inscription" — worth keeping as a note (idea, concept, reference, something to research)
+- "commitment" — something Chris needs to do, promised to do, or must follow up on
+- "chronicle" — a reflection, feeling, observation, or event worth logging in today's journal
+- "discard" — noise, vague filler, already handled, or genuinely not worth keeping
+
+Return ONLY a valid JSON array — no markdown, no explanation.
+Schema: [{"text":"original item text","category":"inscription|commitment|chronicle|discard","reason":"short phrase why"}]
+
+Items:
+${items.map((item, i) => `${i + 1}. ${item}`).join("\n")}
+
+JSON:`,
+      },
+    ],
+  });
+
+  const raw = response.content[0].type === "text" ? response.content[0].text.trim() : "[]";
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return items.map((text) => ({ text, category: "discard" as TriageCategory, reason: "parse error" }));
+  }
+}
+
+// ── Commitment extraction ─────────────────────────────────────────────────────
 
 const COMMITMENT_KEYWORDS = [
   "commit", "promis", "meeting", "notes", "transcript", "i'll", "i will",

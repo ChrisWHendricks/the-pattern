@@ -156,6 +156,46 @@ fn read_file_base64(path: String) -> Result<String, String> {
     Ok(general_purpose::STANDARD.encode(&bytes))
 }
 
+/// Read a text file (bypasses Tauri fs scope — needed for Google Drive paths).
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+/// Write a text file, creating parent directories as needed.
+#[tauri::command]
+fn write_text_file(path: String, content: String) -> Result<(), String> {
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
+}
+
+/// Delete a single file.
+#[tauri::command]
+fn delete_file(path: String) -> Result<(), String> {
+    std::fs::remove_file(&path).map_err(|e| e.to_string())
+}
+
+/// List all files (not subdirectories) in a directory. Returns empty vec if dir doesn't exist.
+#[tauri::command]
+fn list_dir(path: String) -> Result<Vec<String>, String> {
+    let dir = std::path::Path::new(&path);
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let entries = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+    let mut files: Vec<String> = entries
+        .flatten()
+        .filter_map(|e| {
+            let p = e.path();
+            if p.is_file() { p.to_str().map(|s| s.to_owned()) } else { None }
+        })
+        .collect();
+    files.sort();
+    Ok(files)
+}
+
 /// Returns all installed English voices via NSSpeechSynthesizer.
 /// Unlike speechSynthesis.getVoices() in WKWebView, this includes Premium voices.
 #[tauri::command]
@@ -329,6 +369,10 @@ pub fn run() {
             stop_speaking_native,
             copy_file,
             read_file_base64,
+            read_text_file,
+            write_text_file,
+            delete_file,
+            list_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

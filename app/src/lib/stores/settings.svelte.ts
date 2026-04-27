@@ -19,6 +19,7 @@ function createSettings() {
   let openaiKey = $state(ls("oberon_openai_key"));
   let openaiVoice = $state(ls("oberon_openai_voice") || "nova");
   let systemVoiceName = $state(ls("oberon_system_voice"));
+  let devMode = $state(ls("oberon_dev_mode") === "true");
   let showSettingsDialog = $state(false);
 
   return {
@@ -33,6 +34,7 @@ function createSettings() {
     get openaiKey() { return openaiKey; },
     get openaiVoice() { return openaiVoice; },
     get systemVoiceName() { return systemVoiceName; },
+    get devMode() { return devMode; },
     get showSettingsDialog() { return showSettingsDialog; },
     get hasApiKey() { return apiKey.length > 0; },
 
@@ -48,6 +50,7 @@ function createSettings() {
       newOpenaiKey: string,
       newOpenaiVoice: string,
       newSystemVoiceName: string,
+      newDevMode: boolean,
     ) {
       apiKey = newKey;
       model = newModel;
@@ -60,6 +63,7 @@ function createSettings() {
       openaiKey = newOpenaiKey;
       openaiVoice = newOpenaiVoice;
       systemVoiceName = newSystemVoiceName;
+      devMode = newDevMode;
       if (typeof localStorage !== "undefined") {
         localStorage.setItem("oberon_api_key", newKey);
         localStorage.setItem("oberon_model", newModel);
@@ -72,6 +76,7 @@ function createSettings() {
         localStorage.setItem("oberon_openai_key", newOpenaiKey);
         localStorage.setItem("oberon_openai_voice", newOpenaiVoice);
         localStorage.setItem("oberon_system_voice", newSystemVoiceName);
+        localStorage.setItem("oberon_dev_mode", String(newDevMode));
       }
       showSettingsDialog = false;
     },

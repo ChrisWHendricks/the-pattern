@@ -2,11 +2,41 @@
   import { marked } from "marked";
   import { focusStore } from "$lib/stores/focus.svelte";
   import { settings } from "$lib/stores/settings.svelte";
+  import { top3Store } from "$lib/stores/top3.svelte";
+  import { commitments } from "$lib/stores/commitments.svelte";
+  import { vault } from "$lib/stores/vault.svelte";
+  import type { IndexedInscription } from "$lib/search";
 
   let taskInput = $state("");
   let chatInput = $state("");
   let listEl = $state<HTMLElement | null>(null);
   let inputEl = $state<HTMLTextAreaElement | null>(null);
+
+  type OpenLoop = { title: string; path: string; text: string };
+
+  function findOpenLoops(index: IndexedInscription[], limit = 8): OpenLoop[] {
+    const loops: OpenLoop[] = [];
+    for (const entry of index) {
+      if (loops.length >= limit) break;
+      const lines = entry.content.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (/^-\s+\[\s+\]/.test(trimmed) || /^TODO:/i.test(trimmed)) {
+          const text = trimmed
+            .replace(/^-\s+\[\s+\]\s*/, "")
+            .replace(/^TODO:\s*/i, "")
+            .trim();
+          if (text) {
+            loops.push({ title: entry.title, path: entry.path, text });
+            if (loops.length >= limit) break;
+          }
+        }
+      }
+    }
+    return loops;
+  }
+
+  const openLoops = $derived(findOpenLoops(vault.searchIndex));
 
   $effect(() => {
     focusStore.messages;
@@ -70,31 +100,104 @@
 
 <div class="focus-page">
   {#if focusStore.phase === "idle"}
-    <!-- ── Idle: task entry ── -->
+    <!-- ── Idle: task entry + widgets ── -->
     <div class="idle-view">
-      <div class="idle-icon">◎</div>
-      <h1>Guided Focus</h1>
-      <p class="idle-sub">Oberon will break it down and keep you on track.</p>
+      <div class="idle-top">
+        <div class="idle-icon">◎</div>
+        <h1>Guided Focus</h1>
+        <p class="idle-sub">Oberon will break it down and keep you on track.</p>
 
-      {#if !settings.hasApiKey}
-        <p class="no-key">Connect your API key in Settings first.</p>
-      {:else}
-        <div class="task-entry">
-          <textarea
-            bind:value={taskInput}
-            onkeydown={handleStartKey}
-            placeholder="What are we working on?"
-            rows={3}
-          ></textarea>
-          <button
-            class="start-btn"
-            onclick={startSession}
-            disabled={!taskInput.trim()}
-          >
-            Start Focus Session →
-          </button>
+        {#if !settings.hasApiKey}
+          <p class="no-key">Connect your API key in Settings first.</p>
+        {:else}
+          <div class="task-entry">
+            <textarea
+              bind:value={taskInput}
+              onkeydown={handleStartKey}
+              placeholder="What are we working on?"
+              rows={3}
+            ></textarea>
+            <button
+              class="start-btn"
+              onclick={startSession}
+              disabled={!taskInput.trim()}
+            >
+              Start Focus Session →
+            </button>
+          </div>
+        {/if}
+      </div>
+
+      <!-- ── Context widgets ── -->
+      <div class="idle-widgets">
+
+        <!-- Top 3 -->
+        <div class="widget">
+          <div class="widget-header">
+            <span>Today's Top 3</span>
+            {#if top3Store.filledCount > 0}
+              <span class="widget-count">
+                {top3Store.doneCount}/{top3Store.filledCount}
+              </span>
+            {/if}
+          </div>
+          <div class="top3-list">
+            {#each top3Store.items as item, i}
+              <div class="top3-row" class:done={item.done}>
+                <button
+                  class="top3-check"
+                  onclick={() => top3Store.toggle(i)}
+                  title={item.done ? "Mark incomplete" : "Mark done"}
+                  disabled={!item.text.trim()}
+                >
+                  {item.done ? "✓" : "○"}
+                </button>
+                <input
+                  type="text"
+                  class="top3-input"
+                  value={item.text}
+                  oninput={(e) => top3Store.setText(i, (e.target as HTMLInputElement).value)}
+                  placeholder="Priority {i + 1}…"
+                />
+              </div>
+            {/each}
+          </div>
         </div>
-      {/if}
+
+        <!-- Open Loops -->
+        <div class="widget">
+          <div class="widget-header">
+            <span>Open Loops</span>
+            {#if openLoops.length > 0 || commitments.open.length > 0}
+              <span class="widget-count">
+                {openLoops.length + commitments.open.length}
+              </span>
+            {/if}
+          </div>
+
+          {#if commitments.open.length === 0 && openLoops.length === 0}
+            <p class="loops-empty">No open loops found.</p>
+          {:else}
+            <ul class="loops-list">
+              {#each commitments.open.slice(0, 4) as c}
+                <li class="loop-item commitment-loop">
+                  <span class="loop-dot commitment-dot"></span>
+                  <span class="loop-text">{c.text}</span>
+                  {#if c.person}<span class="loop-person">→ {c.person}</span>{/if}
+                </li>
+              {/each}
+              {#each openLoops.slice(0, 5) as loop}
+                <li class="loop-item">
+                  <span class="loop-dot"></span>
+                  <span class="loop-text">{loop.text}</span>
+                  <span class="loop-source">{loop.title}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+
+      </div>
     </div>
 
   {:else if focusStore.phase === "done"}
@@ -251,15 +354,20 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .idle-top {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 14px;
-    padding: 48px 40px;
+    padding: 40px 40px 28px;
     text-align: center;
   }
 
   .idle-icon {
-    font-size: 52px;
+    font-size: 44px;
     color: var(--accent);
     opacity: 0.7;
     line-height: 1;
@@ -267,7 +375,7 @@
 
   .idle-view h1 {
     margin: 0;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
     color: var(--text);
   }
@@ -293,7 +401,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: 8px;
+    margin-top: 4px;
   }
 
   .task-entry textarea {
@@ -340,6 +448,174 @@
 
   .start-btn:not(:disabled):hover {
     opacity: 0.85;
+  }
+
+  /* ── Widgets ── */
+  .idle-widgets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding: 0 32px 32px;
+    max-width: 820px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  .widget {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .widget-count {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    padding: 1px 7px;
+    border-radius: 10px;
+  }
+
+  /* Top 3 */
+  .top3-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .top3-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .top3-check {
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+
+  .top3-check:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .top3-check:not(:disabled):hover {
+    color: var(--accent);
+  }
+
+  .top3-row.done .top3-check {
+    color: #4ade80;
+  }
+
+  .top3-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    font-family: var(--font-sans);
+    padding: 4px 2px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .top3-input:focus {
+    border-bottom-color: var(--accent);
+  }
+
+  .top3-input::placeholder {
+    color: var(--text-dim);
+  }
+
+  .top3-row.done .top3-input {
+    text-decoration: line-through;
+    color: var(--text-dim);
+  }
+
+  /* Open Loops */
+  .loops-empty {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .loops-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .loop-item {
+    display: grid;
+    grid-template-columns: 8px 1fr auto;
+    align-items: start;
+    gap: 7px;
+    font-size: 12px;
+  }
+
+  .loop-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+
+  .commitment-dot {
+    background: #f59e0b;
+  }
+
+  .loop-text {
+    color: var(--text-muted);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .loop-person {
+    font-size: 11px;
+    color: #f59e0b;
+    flex-shrink: 0;
+  }
+
+  .loop-source {
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
   }
 
   /* ── Done ── */
