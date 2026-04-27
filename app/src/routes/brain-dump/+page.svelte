@@ -1,8 +1,17 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { brainDumpStore, type TriageCategory } from "$lib/stores/braindump.svelte";
   import { settings } from "$lib/stores/settings.svelte";
 
   let dumpText = $state("");
+
+  onMount(() => {
+    const prefill = sessionStorage.getItem("braindump_prefill");
+    if (prefill) {
+      dumpText = prefill;
+      sessionStorage.removeItem("braindump_prefill");
+    }
+  });
 
   async function handleTriage() {
     if (!dumpText.trim()) return;
@@ -19,6 +28,7 @@
   const CATEGORY_LABELS: Record<TriageCategory, string> = {
     inscription: "Inscription",
     commitment: "Commitment",
+    spark: "Spark",
     chronicle: "Chronicle",
     discard: "Discard",
   };
@@ -26,6 +36,7 @@
   const CATEGORY_ACTIONS: Record<TriageCategory, string> = {
     inscription: "Save to vault",
     commitment: "Add to commitments",
+    spark: "Capture spark",
     chronicle: "Log to chronicle",
     discard: "Skip",
   };
@@ -399,6 +410,11 @@
   .cat-commitment {
     background: color-mix(in srgb, #f59e0b 15%, transparent);
     color: #f59e0b;
+  }
+
+  .cat-spark {
+    background: color-mix(in srgb, var(--oberon) 15%, transparent);
+    color: var(--oberon);
   }
 
   .cat-chronicle {

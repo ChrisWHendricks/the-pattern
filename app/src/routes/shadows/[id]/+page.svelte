@@ -9,7 +9,12 @@
   import { artifactTypeIcon } from "$lib/artifacts";
   import { resolveCoverStyle } from "$lib/shadows";
   import Editor from "$lib/components/Editor.svelte";
-  import OberonChat from "$lib/components/OberonChat.svelte";
+  import ResizeHandle from "$lib/components/ResizeHandle.svelte";
+  import { layoutStore } from "$lib/stores/layout.svelte";
+
+  const LS_KEY = "shadows_panel_w";
+  let panelWidth = $state(parseInt(typeof localStorage !== "undefined" ? localStorage.getItem(LS_KEY) ?? "240" : "240"));
+  $effect(() => localStorage.setItem(LS_KEY, String(panelWidth)));
 
   const shadowId = $derived($page.params.id ?? "");
   const shadow = $derived(shadowsStore.shadows.find((s) => s.id === shadowId) ?? null);
@@ -28,7 +33,6 @@
       : []
   );
 
-  let chatOpen = $state(false);
   let addingExisting = $state(false);
 
   const availableToAdd = $derived(
@@ -75,7 +79,7 @@
 
 <div class="shadow-layout">
   <!-- Left: filtered inscriptions for this shadow -->
-  <div class="shadow-panel">
+  <div class="shadow-panel" style="width: {panelWidth}px">
     <!-- Cover header with back nav -->
     <div class="shadow-header" style="background: {coverStyle()};">
       <div class="header-overlay">
@@ -171,6 +175,8 @@
     </ul>
   </div>
 
+  <ResizeHandle onDelta={(d) => { panelWidth = Math.max(160, Math.min(480, panelWidth + d)); }} />
+
   <!-- Right: editor -->
   <div class="editor-wrapper">
     {#if !settings.vaultPath}
@@ -185,8 +191,8 @@
           onSave={handleSave}
           onDirty={() => vault.markDirty()}
           saving={vault.isSaving}
-          {chatOpen}
-          onToggleChat={() => (chatOpen = !chatOpen)}
+          chatOpen={layoutStore.oberonOpen}
+          onToggleChat={() => layoutStore.toggleOberon()}
         />
       {/key}
       {#if linkedArtifacts.length > 0}
@@ -218,11 +224,6 @@
     {/if}
   </div>
 
-  {#if chatOpen}
-    <div class="chat-panel">
-      <OberonChat />
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -235,9 +236,8 @@
 
   /* ── Left panel ── */
   .shadow-panel {
-    width: 240px;
-    min-width: 240px;
-    border-right: 1px solid var(--border);
+    min-width: 160px;
+    border-right: none;
     display: flex;
     flex-direction: column;
     background: var(--sidebar-bg);
@@ -558,14 +558,4 @@
     border-style: dashed;
   }
 
-  /* ── Chat panel ── */
-  .chat-panel {
-    width: 340px;
-    min-width: 340px;
-    border-left: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-  }
 </style>

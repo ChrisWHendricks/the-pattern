@@ -1,29 +1,10 @@
 <script lang="ts">
-  import { page } from "$app/stores";
-  import { goto } from "$app/navigation";
   import { settings } from "$lib/stores/settings.svelte";
   import { conversation } from "$lib/stores/conversation.svelte";
-  import { commitments } from "$lib/stores/commitments.svelte";
-  import { logrusStore } from "$lib/stores/logrus.svelte";
-  import CommitmentList from "./CommitmentList.svelte";
-
-  const navItems = [
-    { label: "Cockpit", icon: "⊙", href: "/cockpit", available: true },
-    { label: "Oberon", icon: "◈", href: "/", available: true },
-    { label: "Top 3", icon: "≡", href: "/top3", available: true },
-    { label: "Inscriptions", icon: "◻", href: "/inscriptions", available: true },
-    { label: "Chronicles", icon: "◫", href: "/chronicles", available: true },
-    { label: "Shadows", icon: "◑", href: "/shadows", available: true },
-    { label: "Focus", icon: "◎", href: "/focus", available: true },
-    { label: "Brain Dump", icon: "⟁", href: "/brain-dump", available: true },
-    { label: "Artifacts", icon: "◧", href: "/artifacts", available: true },
-    { label: "The Logrus", icon: "⊗", href: "/logrus", available: true },
-  ];
-
-  function isActive(href: string) {
-    if (href === "/") return $page.url.pathname === "/";
-    return $page.url.pathname.startsWith(href);
-  }
+  import { layoutStore } from "$lib/stores/layout.svelte";
+  import SidebarSections from "$lib/components/SidebarSections.svelte";
+  import SidebarTree from "$lib/components/SidebarTree.svelte";
+  import SidebarPanelNav from "$lib/components/SidebarPanelNav.svelte";
 </script>
 
 <aside class="sidebar">
@@ -35,75 +16,42 @@
     </div>
   </div>
 
-  <nav class="nav">
-    {#each navItems as item}
+  <div class="nav-shell">
+    {#if settings.sidebarLayout === "tree"}
+      <SidebarTree />
+    {:else if settings.sidebarLayout === "panels"}
+      <SidebarPanelNav />
+    {:else}
+      <SidebarSections />
+    {/if}
+
+    <div class="nav-pinned">
       <button
         class="nav-item"
-        class:active={isActive(item.href)}
-        class:disabled={!item.available}
-        disabled={!item.available}
-        onclick={() => item.available && goto(item.href)}
-        title={item.available ? item.label : `${item.label} — coming soon`}
+        class:active={layoutStore.oberonOpen}
+        onclick={() => layoutStore.toggleOberon()}
+        title="Toggle Oberon"
       >
-        <span class="nav-icon">{item.icon}</span>
-        <span class="nav-label">{item.label}</span>
-        {#if !item.available}
-          <span class="nav-badge">soon</span>
-        {:else if item.href === "/logrus" && logrusStore.items.length > 0}
-          <span class="nav-count">{logrusStore.items.length}</span>
-        {/if}
+        <span class="nav-icon">◈</span>
+        <span class="nav-label">Oberon</span>
       </button>
-    {/each}
-    {#if settings.devMode}
-      <button
-        class="nav-item dev-item"
-        class:active={isActive("/developer")}
-        onclick={() => goto("/developer")}
-        title="Developer — defects & features"
-      >
-        <span class="nav-icon">⬡</span>
-        <span class="nav-label">Developer</span>
-        <span class="nav-badge dev-badge">dev</span>
-      </button>
-    {/if}
-  </nav>
 
-  <div class="sidebar-section">
-    <div class="section-header">
-      <div class="section-label">Open commitments</div>
-      {#if commitments.open.length > 0}
-        <span class="count-badge">{commitments.open.length}</span>
-      {/if}
-      {#if conversation.extracting}
-        <span class="extracting-dot" title="Scanning for commitments…"></span>
-      {/if}
+      <button
+        class="nav-item settings-item"
+        onclick={() => settings.openSettings()}
+        title="Settings"
+      >
+        <span class="nav-icon">⚙</span>
+        <span class="nav-label">Settings</span>
+      </button>
     </div>
-    <CommitmentList />
-  </div>
-
-  <div class="sidebar-footer">
-    <button class="footer-btn" onclick={() => settings.openSettings()}>
-      <span class="footer-icon">⚙</span>
-      Settings
-    </button>
-    {#if conversation.messages.length > 1}
-      <button
-        class="footer-btn"
-        disabled={conversation.isSummarizing}
-        onclick={() => conversation.startNewSession()}
-      >
-        <span class="footer-icon">{conversation.isSummarizing ? "…" : "↺"}</span>
-        {conversation.isSummarizing ? "Saving memory…" : "New session"}
-      </button>
-    {/if}
   </div>
 </aside>
 
 <style>
   .sidebar {
-    width: 220px;
-    min-width: 220px;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     background: var(--sidebar-bg);
     border-right: 1px solid var(--border);
     display: flex;
@@ -145,11 +93,21 @@
     text-transform: uppercase;
   }
 
-  .nav {
-    padding: 8px 8px 0;
+  .nav-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .nav-pinned {
+    padding: 4px 8px 8px;
     display: flex;
     flex-direction: column;
     gap: 2px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
   }
 
   .nav-item {
@@ -168,7 +126,7 @@
     transition: background 0.15s, color 0.15s;
   }
 
-  .nav-item:not(.disabled):hover {
+  .nav-item:hover {
     background: var(--surface-hover);
     color: var(--text);
   }
@@ -178,11 +136,6 @@
     color: var(--accent);
   }
 
-  .nav-item.disabled {
-    cursor: default;
-    opacity: 0.4;
-  }
-
   .nav-icon {
     font-size: 14px;
     width: 18px;
@@ -190,111 +143,4 @@
   }
 
   .nav-label { flex: 1; }
-
-  .nav-badge {
-    font-size: 9px;
-    padding: 1px 5px;
-    border-radius: 4px;
-    background: var(--surface-hover);
-    color: var(--text-dim);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .nav-count {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--oberon) 20%, transparent);
-    color: var(--oberon);
-  }
-
-  .dev-badge {
-    background: color-mix(in srgb, #f59e0b 15%, transparent);
-    color: #f59e0b;
-  }
-
-  .dev-item { opacity: 0.75; }
-  .dev-item:hover, .dev-item.active { opacity: 1; }
-
-  .sidebar-section {
-    flex: 1;
-    padding: 14px 12px;
-    overflow-y: auto;
-    border-top: 1px solid var(--border);
-    margin-top: 8px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 10px;
-  }
-
-  .section-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    flex: 1;
-  }
-
-  .count-badge {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
-    padding: 1px 6px;
-    border-radius: 10px;
-  }
-
-  .extracting-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--oberon);
-    animation: pulse 1s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
-  }
-
-  .sidebar-footer {
-    padding: 8px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .footer-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 7px 10px;
-    border: none;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 12px;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s, color 0.15s;
-  }
-
-  .footer-btn:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-  }
-
-  .footer-icon {
-    width: 18px;
-    text-align: center;
-  }
 </style>
