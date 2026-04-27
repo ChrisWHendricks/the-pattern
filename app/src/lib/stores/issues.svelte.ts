@@ -1,30 +1,26 @@
-import { loadIssues, saveIssues, type AppIssue } from "$lib/issues";
-import { settings } from "$lib/stores/settings.svelte";
+import type { AppIssue } from "$lib/issues";
 
 export type { AppIssue };
 
-function createIssuesStore() {
-  let issues = $state<AppIssue[]>([]);
-  let isLoading = $state(false);
+const STORAGE_KEY = "the_pattern_issues";
 
-  async function load() {
-    if (!settings.vaultPath) return;
-    isLoading = true;
+function createIssuesStore() {
+  function fromStorage(): AppIssue[] {
     try {
-      issues = await loadIssues(settings.vaultPath);
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
     } catch {
-      // Non-critical
-    } finally {
-      isLoading = false;
+      return [];
     }
   }
 
-  async function persist() {
-    if (!settings.vaultPath) return;
-    await saveIssues(settings.vaultPath, issues);
+  let issues = $state<AppIssue[]>(fromStorage());
+
+  function persist() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(issues));
   }
 
-  async function create(type: AppIssue["type"], title: string, description = ""): Promise<AppIssue> {
+  function create(type: AppIssue["type"], title: string, description = ""): AppIssue {
     const issue: AppIssue = {
       id: crypto.randomUUID(),
       type,
@@ -34,16 +30,16 @@ function createIssuesStore() {
       createdAt: new Date().toISOString(),
     };
     issues = [...issues, issue];
-    await persist();
+    persist();
     return issue;
   }
 
-  async function updateStatus(id: string, status: AppIssue["status"]) {
+  function updateStatus(id: string, status: AppIssue["status"]) {
     const idx = issues.findIndex((i) => i.id === id);
     if (idx === -1) return;
     issues[idx] = { ...issues[idx], status, updatedAt: new Date().toISOString() };
     issues = [...issues];
-    await persist();
+    persist();
   }
 
   function list(filter?: { type?: AppIssue["type"]; status?: AppIssue["status"] }): AppIssue[] {
@@ -56,8 +52,6 @@ function createIssuesStore() {
 
   return {
     get issues() { return issues; },
-    get isLoading() { return isLoading; },
-    load,
     create,
     updateStatus,
     list,

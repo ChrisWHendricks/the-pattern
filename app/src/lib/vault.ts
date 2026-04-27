@@ -23,8 +23,10 @@ function extractTitle(content: string, fallback: string): string {
 }
 
 export async function ensureDir(path: string): Promise<void> {
-  if (!(await exists(path))) {
+  try {
     await mkdir(path, { recursive: true });
+  } catch {
+    // Silently ignore — directory likely already exists
   }
 }
 

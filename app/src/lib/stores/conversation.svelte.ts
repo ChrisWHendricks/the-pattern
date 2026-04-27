@@ -110,8 +110,7 @@ function createConversation() {
       }
 
       case "create_issue": {
-        if (!settings.vaultPath) return "No vault path configured. Set one in Settings first.";
-        const issue = await issuesStore.create(
+        const issue = issuesStore.create(
           input.type as "defect" | "feature",
           input.title as string,
           (input.description as string | undefined) ?? ""
@@ -135,7 +134,7 @@ function createConversation() {
         if (!issue) {
           return `Issue "${input.title}" not found. Use "list issues" to see what's available.`;
         }
-        await issuesStore.updateStatus(issue.id, input.status as "open" | "in-progress" | "done");
+        issuesStore.updateStatus(issue.id, input.status as "open" | "in-progress" | "done");
         return `Updated "${issue.title}" → ${input.status}`;
       }
 
@@ -210,8 +209,8 @@ function createConversation() {
         runExtractionSilently(content, fullReply);
       }
     } catch (e) {
-      error =
-        e instanceof Error ? e.message : "Something went wrong talking to Oberon.";
+      console.error("[conversation] send error:", e);
+      error = e instanceof Error ? e.message : String(e) || "Something went wrong talking to Oberon.";
     } finally {
       isStreaming = false;
       isExecutingTool = false;

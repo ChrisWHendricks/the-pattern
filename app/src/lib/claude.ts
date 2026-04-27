@@ -183,6 +183,7 @@ export async function* streamChat(
   const collectedBlocks: CollectedBlock[] = [];
   let blockIndex = -1;
   let toolInputJson = "";
+  let stopReason: string | null = null;
 
   for await (const event of stream) {
     if (event.type === "content_block_start") {
@@ -211,12 +212,12 @@ export async function* streamChat(
       if (block?.type === "tool_use" && toolInputJson) {
         try { block.input = JSON.parse(toolInputJson); } catch { /* keep {} */ }
       }
+    } else if (event.type === "message_delta") {
+      stopReason = event.delta.stop_reason ?? null;
     }
   }
 
-  const finalMsg = await stream.finalMessage();
-
-  if (finalMsg.stop_reason !== "tool_use" || !options?.onToolCall) return;
+  if (stopReason !== "tool_use" || !options?.onToolCall) return;
 
   // Tool round-trip: execute tools, then stream Phase 2 response
   options.onToolStart?.();
