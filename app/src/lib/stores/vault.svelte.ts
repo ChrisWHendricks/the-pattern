@@ -135,6 +135,21 @@ function createVaultStore() {
     }
   }
 
+  async function removeInscription(path: string) {
+    try {
+      await deleteInscription(path);
+      inscriptions = inscriptions.filter((i) => i.path !== path);
+      searchIndex = searchIndex.filter((i) => i.path !== path);
+      if (currentInscription?.path === path) {
+        currentInscription = null;
+        currentContent = "";
+        isDirty = false;
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : "Failed to delete inscription";
+    }
+  }
+
   function markDirty() {
     isDirty = true;
   }
@@ -154,6 +169,7 @@ function createVaultStore() {
     openInscription,
     saveCurrentInscription,
     newInscription,
+    removeInscription,
     markDirty,
     // legacy aliases used by quick-capture in +layout.svelte
     get currentNote() { return currentInscription; },

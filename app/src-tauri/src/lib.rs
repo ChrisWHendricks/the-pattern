@@ -139,6 +139,23 @@ fn stop_speaking_native() {
     STOP_SPEAKING.store(true, Ordering::SeqCst);
 }
 
+/// Copy a file from src to dest, creating parent directories as needed.
+#[tauri::command]
+fn copy_file(src: String, dest: String) -> Result<(), String> {
+    if let Some(parent) = std::path::Path::new(&dest).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::copy(&src, &dest).map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Read a binary file and return its contents as a base64-encoded string.
+#[tauri::command]
+fn read_file_base64(path: String) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(general_purpose::STANDARD.encode(&bytes))
+}
+
 /// Returns all installed English voices via NSSpeechSynthesizer.
 /// Unlike speechSynthesis.getVoices() in WKWebView, this includes Premium voices.
 #[tauri::command]
@@ -236,8 +253,47 @@ fn install_media_permission_delegate(win: &tauri::WebviewWindow) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol("vault", |_app, request| {
+            let uri = request.uri().to_string();
+            // vault://localhost/absolute/path/to/file  (path segments are percent-encoded)
+            let path_encoded = uri
+                .trim_start_matches("vault://localhost")
+                .trim_start_matches("vault://");
+
+            let path = urlencoding::decode(path_encoded)
+                .map(|c| c.into_owned())
+                .unwrap_or_else(|_| path_encoded.to_string());
+
+            let ext = std::path::Path::new(&path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
+
+            let content_type = match ext.to_lowercase().as_str() {
+                "pdf"        => "application/pdf",
+                "png"        => "image/png",
+                "jpg"|"jpeg" => "image/jpeg",
+                "gif"        => "image/gif",
+                "webp"       => "image/webp",
+                _            => "application/octet-stream",
+            };
+
+            match std::fs::read(&path) {
+                Ok(bytes) => tauri::http::Response::builder()
+                    .status(200)
+                    .header("Content-Type", content_type)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(bytes)
+                    .unwrap(),
+                Err(e) => tauri::http::Response::builder()
+                    .status(404)
+                    .body(e.to_string().into_bytes())
+                    .unwrap(),
+            }
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -270,7 +326,9 @@ pub fn run() {
             greet,
             list_system_voices,
             speak_text,
-            stop_speaking_native
+            stop_speaking_native,
+            copy_file,
+            read_file_base64,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

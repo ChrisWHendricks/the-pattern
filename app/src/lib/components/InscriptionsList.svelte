@@ -11,25 +11,34 @@
   function buildMenuItems(inscription: InscriptionFile): MenuEntry[] {
     const items: MenuEntry[] = [];
 
-    if (shadowsStore.shadows.length === 0) {
-      items.push({ label: "No shadows yet — create one first", disabled: true, action: () => {} });
-      return items;
+    if (shadowsStore.shadows.length > 0) {
+      items.push({ label: "Assign to Shadow", disabled: true, action: () => {} });
+      items.push({ separator: true });
+
+      for (const shadow of shadowsStore.shadows) {
+        const assigned = shadowsStore.isAssigned(shadow.id, inscription.path);
+        items.push({
+          label: shadow.name,
+          checked: assigned,
+          action: () => {
+            if (assigned) shadowsStore.unassign(shadow.id, inscription.path);
+            else shadowsStore.assign(shadow.id, inscription.path);
+          },
+        });
+      }
+
+      items.push({ separator: true });
     }
 
-    items.push({ label: "Assign to Shadow", disabled: true, action: () => {} });
-    items.push({ separator: true });
-
-    for (const shadow of shadowsStore.shadows) {
-      const assigned = shadowsStore.isAssigned(shadow.id, inscription.path);
-      items.push({
-        label: shadow.name,
-        checked: assigned,
-        action: () => {
-          if (assigned) shadowsStore.unassign(shadow.id, inscription.path);
-          else shadowsStore.assign(shadow.id, inscription.path);
-        },
-      });
-    }
+    items.push({
+      label: "Delete Inscription",
+      danger: true,
+      action: () => {
+        if (confirm(`Delete "${inscription.title}"? This cannot be undone.`)) {
+          vault.removeInscription(inscription.path);
+        }
+      },
+    });
 
     return items;
   }

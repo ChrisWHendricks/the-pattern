@@ -7,6 +7,7 @@
     label: string;
     checked?: boolean;
     disabled?: boolean;
+    danger?: boolean;
     action: () => void;
   };
   export type MenuEntry = MenuItem | MenuSeparator;
@@ -57,6 +58,7 @@
       <button
         class="menu-item"
         class:checked={item.checked}
+        class:danger={item.danger}
         disabled={item.disabled}
         role="menuitem"
         onclick={() => { item.action(); onClose(); }}
@@ -110,6 +112,8 @@
   .menu-item:disabled { opacity: 0.35; cursor: default; }
 
   .menu-item.checked { color: var(--accent); }
+  .menu-item.danger { color: #e06c75; }
+  .menu-item.danger:hover:not(:disabled) { background: color-mix(in srgb, #e06c75 12%, transparent); color: #ff8b96; }
 
   .check-slot {
     width: 12px;

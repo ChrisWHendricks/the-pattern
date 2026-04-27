@@ -1,12 +1,21 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
   import { vault } from "$lib/stores/vault.svelte";
   import { settings } from "$lib/stores/settings.svelte";
+  import { artifactsStore } from "$lib/stores/artifacts.svelte";
+  import { artifactTypeIcon } from "$lib/artifacts";
   import InscriptionsList from "$lib/components/InscriptionsList.svelte";
   import Editor from "$lib/components/Editor.svelte";
   import OberonChat from "$lib/components/OberonChat.svelte";
 
   let chatOpen = $state(false);
+
+  const linkedArtifacts = $derived(
+    vault.currentInscription
+      ? artifactsStore.forInscription(vault.currentInscription.path)
+      : []
+  );
 
   onMount(async () => {
     if (settings.vaultPath) {
@@ -44,6 +53,26 @@
             onToggleChat={() => (chatOpen = !chatOpen)}
           />
         {/key}
+        {#if linkedArtifacts.length > 0}
+          <div class="artifacts-strip">
+            <span class="artifacts-strip-label">Artifacts</span>
+            {#each linkedArtifacts as artifact (artifact.id)}
+              <button
+                class="artifact-chip"
+                title={artifact.filename}
+                onclick={() => goto(`/artifacts?selected=${artifact.id}`)}
+              >
+                {artifactTypeIcon(artifact.mimeType)}
+                <span>{artifact.filename}</span>
+              </button>
+            {/each}
+            <button
+              class="artifact-chip artifact-chip-add"
+              title="Import new artifact linked to this inscription"
+              onclick={() => vault.currentInscription && artifactsStore.importArtifact(vault.currentInscription.path)}
+            >+ Artifact</button>
+          </div>
+        {/if}
       {:else}
         <div class="no-inscription">
           <div class="no-inscription-icon">◻</div>
@@ -146,4 +175,49 @@
   }
 
   .cta-btn:hover { opacity: 0.9; }
+
+  .artifacts-strip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--sidebar-bg);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .artifacts-strip-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-right: 2px;
+  }
+
+  .artifact-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+
+  .artifact-chip:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .artifact-chip-add {
+    color: var(--text-dim);
+    border-style: dashed;
+  }
 </style>

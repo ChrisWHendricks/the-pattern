@@ -16,8 +16,9 @@
   let dragOver = $state<string | null>(null); // shadowId being dragged over
 
   onMount(async () => {
+    shadowsStore.load();
     if (settings.vaultPath) {
-      await Promise.all([shadowsStore.load(), vault.loadInscriptions()]);
+      await vault.loadInscriptions();
     }
   });
 
@@ -35,10 +36,10 @@
     return vault.inscriptions.filter((i) => !paths.includes(i.path));
   });
 
-  async function submitNewShadow() {
+  function submitNewShadow() {
     const name = newShadowName.trim();
     if (!name) return;
-    await shadowsStore.createShadow(name);
+    shadowsStore.createShadow(name);
     newShadowName = "";
     creatingNew = false;
   }
@@ -48,9 +49,9 @@
     editingName = true;
   }
 
-  async function commitName() {
+  function commitName() {
     if (selected && draftName.trim()) {
-      await shadowsStore.updateShadow(selected.id, { name: draftName.trim() });
+      shadowsStore.updateShadow(selected.id, { name: draftName.trim() });
     }
     editingName = false;
   }
@@ -60,9 +61,9 @@
     editingDesc = true;
   }
 
-  async function commitDesc() {
+  function commitDesc() {
     if (selected) {
-      await shadowsStore.updateShadow(selected.id, { description: draftDesc });
+      shadowsStore.updateShadow(selected.id, { description: draftDesc });
     }
     editingDesc = false;
   }
@@ -72,9 +73,9 @@
     editingCover = true;
   }
 
-  async function commitCover() {
+  function commitCover() {
     if (selected) {
-      await shadowsStore.updateShadow(selected.id, { coverImage: draftCover.trim() || null });
+      shadowsStore.updateShadow(selected.id, { coverImage: draftCover.trim() || null });
     }
     editingCover = false;
   }
@@ -89,18 +90,18 @@
 
   function onDragLeave() { dragOver = null; }
 
-  async function onDrop(e: DragEvent, shadowId: string) {
+  function onDrop(e: DragEvent, shadowId: string) {
     e.preventDefault();
     dragOver = null;
     const path = e.dataTransfer?.getData("text/inscription-path");
-    if (path) await shadowsStore.assign(shadowId, path);
+    if (path) shadowsStore.assign(shadowId, path);
   }
 
   async function createInscriptionInShadow() {
     if (!selected || !settings.vaultPath) return;
     await vault.newInscription();
     if (vault.currentInscription) {
-      await shadowsStore.assign(selected.id, vault.currentInscription.path);
+      shadowsStore.assign(selected.id, vault.currentInscription.path);
     }
   }
 

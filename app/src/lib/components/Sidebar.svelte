@@ -12,6 +12,7 @@
     { label: "Chronicles", icon: "◫", href: "/chronicles", available: true },
     { label: "Shadows", icon: "◑", href: "/shadows", available: true },
     { label: "Focus", icon: "◎", href: "/focus", available: true },
+    { label: "Artifacts", icon: "◧", href: "/artifacts", available: true },
   ];
 
   function isActive(href: string) {

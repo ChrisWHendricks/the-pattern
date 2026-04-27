@@ -1,38 +1,48 @@
-import {
-  loadShadows, saveShadows,
-  loadAssignments, saveAssignments,
-  type Shadow, type ShadowAssignments,
-} from "$lib/shadows";
-import { settings } from "$lib/stores/settings.svelte";
+import { type Shadow, type ShadowAssignments } from "$lib/shadows";
+
+const SHADOWS_KEY = "the_pattern_shadows";
+const ASSIGNMENTS_KEY = "the_pattern_assignments";
+
+function readShadows(): Shadow[] {
+  try {
+    const raw = localStorage.getItem(SHADOWS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readAssignments(): ShadowAssignments {
+  try {
+    const raw = localStorage.getItem(ASSIGNMENTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
 
 function createShadowsStore() {
-  let shadows = $state<Shadow[]>([]);
-  let assignments = $state<ShadowAssignments>({});
+  let shadows = $state<Shadow[]>(readShadows());
+  let assignments = $state<ShadowAssignments>(readAssignments());
   let selectedId = $state<string | null>(null);
-  let isLoading = $state(false);
-  let error = $state<string | null>(null);
 
   const selected = $derived(shadows.find((s) => s.id === selectedId) ?? null);
 
-  async function load() {
-    if (!settings.vaultPath) return;
-    isLoading = true;
-    try {
-      const [s, a] = await Promise.all([
-        loadShadows(settings.vaultPath),
-        loadAssignments(settings.vaultPath),
-      ]);
-      shadows = s;
-      assignments = a;
-      if (!selectedId && shadows.length > 0) selectedId = shadows[0].id;
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to load shadows";
-    } finally {
-      isLoading = false;
-    }
+  function persistShadows() {
+    localStorage.setItem(SHADOWS_KEY, JSON.stringify(shadows));
   }
 
-  async function createShadow(name: string, description = ""): Promise<Shadow> {
+  function persistAssignments() {
+    localStorage.setItem(ASSIGNMENTS_KEY, JSON.stringify(assignments));
+  }
+
+  function load() {
+    shadows = readShadows();
+    assignments = readAssignments();
+    if (!selectedId && shadows.length > 0) selectedId = shadows[0].id;
+  }
+
+  function createShadow(name: string, description = ""): Shadow {
     const shadow: Shadow = {
       id: crypto.randomUUID(),
       name: name.trim() || "Untitled Shadow",
@@ -42,41 +52,39 @@ function createShadowsStore() {
     };
     shadows = [...shadows, shadow];
     selectedId = shadow.id;
-    await saveShadows(settings.vaultPath, shadows);
+    persistShadows();
     return shadow;
   }
 
-  async function updateShadow(id: string, patch: Partial<Omit<Shadow, "id" | "createdAt">>) {
+  function updateShadow(id: string, patch: Partial<Omit<Shadow, "id" | "createdAt">>) {
     const idx = shadows.findIndex((s) => s.id === id);
     if (idx === -1) return;
     shadows[idx] = { ...shadows[idx], ...patch };
     shadows = [...shadows];
-    await saveShadows(settings.vaultPath, shadows);
+    persistShadows();
   }
 
-  async function deleteShadow(id: string) {
+  function deleteShadow(id: string) {
     shadows = shadows.filter((s) => s.id !== id);
     const newAssignments = { ...assignments };
     delete newAssignments[id];
     assignments = newAssignments;
     if (selectedId === id) selectedId = shadows[0]?.id ?? null;
-    await Promise.all([
-      saveShadows(settings.vaultPath, shadows),
-      saveAssignments(settings.vaultPath, assignments),
-    ]);
+    persistShadows();
+    persistAssignments();
   }
 
-  async function assign(shadowId: string, inscriptionPath: string) {
+  function assign(shadowId: string, inscriptionPath: string) {
     const current = assignments[shadowId] ?? [];
     if (current.includes(inscriptionPath)) return;
     assignments = { ...assignments, [shadowId]: [...current, inscriptionPath] };
-    await saveAssignments(settings.vaultPath, assignments);
+    persistAssignments();
   }
 
-  async function unassign(shadowId: string, inscriptionPath: string) {
+  function unassign(shadowId: string, inscriptionPath: string) {
     const current = assignments[shadowId] ?? [];
     assignments = { ...assignments, [shadowId]: current.filter((p) => p !== inscriptionPath) };
-    await saveAssignments(settings.vaultPath, assignments);
+    persistAssignments();
   }
 
   function isAssigned(shadowId: string, inscriptionPath: string): boolean {
@@ -93,7 +101,7 @@ function createShadowsStore() {
       .map(([id]) => id);
   }
 
-  async function updatePath(oldPath: string, newPath: string) {
+  function updatePath(oldPath: string, newPath: string) {
     let changed = false;
     const updated = { ...assignments };
     for (const shadowId in updated) {
@@ -106,7 +114,7 @@ function createShadowsStore() {
     }
     if (changed) {
       assignments = updated;
-      await saveAssignments(settings.vaultPath, assignments);
+      persistAssignments();
     }
   }
 
@@ -115,8 +123,6 @@ function createShadowsStore() {
     get selected() { return selected; },
     get selectedId() { return selectedId; },
     get assignments() { return assignments; },
-    get isLoading() { return isLoading; },
-    get error() { return error; },
     select(id: string | null) { selectedId = id; },
     load,
     createShadow,

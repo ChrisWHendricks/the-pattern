@@ -76,7 +76,7 @@ function createConversation() {
     switch (name) {
       case "create_shadow": {
         if (!settings.vaultPath) return "No vault path configured. Set one in Settings first.";
-        const shadow = await shadowsStore.createShadow(
+        const shadow = shadowsStore.createShadow(
           input.name as string,
           (input.description as string | undefined) ?? ""
         );
@@ -105,7 +105,7 @@ function createConversation() {
         if (shadowsStore.isAssigned(shadow.id, inscription.path)) {
           return `"${inscription.title}" is already in Shadow "${shadow.name}"`;
         }
-        await shadowsStore.assign(shadow.id, inscription.path);
+        shadowsStore.assign(shadow.id, inscription.path);
         return `Added "${inscription.title}" to Shadow "${shadow.name}"`;
       }
 

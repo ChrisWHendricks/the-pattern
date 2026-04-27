@@ -12,6 +12,7 @@
     "fs:allow-mkdir",
     "fs:allow-exists",
     "fs:allow-remove",
-    "fs:scope-home-recursive"
+    "fs:scope-home-recursive",
+    "dialog:allow-open"
   ]
 }
