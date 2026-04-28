@@ -50,6 +50,14 @@ function createCommitmentsStore() {
       for (const c of commitments) this.add(c);
     },
 
+    update(id: string, changes: Partial<Pick<Commitment, "text" | "person" | "due">>) {
+      const item = items.find((c) => c.id === id);
+      if (item) {
+        Object.assign(item, changes);
+        persist();
+      }
+    },
+
     complete(id: string) {
       const item = items.find((c) => c.id === id);
       if (item) {

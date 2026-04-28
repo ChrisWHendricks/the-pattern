@@ -2,12 +2,14 @@
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import { sparks } from "$lib/stores/sparks.svelte";
+  import { commitments } from "$lib/stores/commitments.svelte";
 
   const dailyItems = [
-    { label: "Home",       icon: "☀", href: "/home" },
-    { label: "Focus",      icon: "◎", href: "/focus" },
-    { label: "Brain Dump", icon: "⟁", href: "/brain-dump" },
-    { label: "Sparks",     icon: "◇", href: "/sparks" },
+    { label: "Home",        icon: "☀", href: "/home" },
+    { label: "Focus",       icon: "◎", href: "/focus" },
+    { label: "Brain Dump",  icon: "⟁", href: "/brain-dump" },
+    { label: "Commitments", icon: "◈", href: "/sparks?tab=commitments" },
+    { label: "Sparks",      icon: "◇", href: "/sparks?tab=sparks" },
   ];
 
   const KNOWLEDGE_PREFIXES = [
@@ -16,7 +18,14 @@
 
   function isActive(href: string) {
     if (href === "/") return $page.url.pathname === "/";
-    return $page.url.pathname.startsWith(href);
+    const [path, qs] = href.split("?");
+    if (!$page.url.pathname.startsWith(path)) return false;
+    if (!qs) return true;
+    const params = new URLSearchParams(qs);
+    for (const [k, v] of params) {
+      if ($page.url.searchParams.get(k) !== v) return false;
+    }
+    return true;
   }
 
   const isKnowledgeActive = $derived(
@@ -34,7 +43,10 @@
     >
       <span class="nav-icon">{item.icon}</span>
       <span class="nav-label">{item.label}</span>
-      {#if item.href === "/sparks" && sparks.open.length > 0}
+      {#if item.href === "/sparks?tab=commitments" && commitments.open.length > 0}
+        <span class="nav-count commit-count">{commitments.open.length}</span>
+      {/if}
+      {#if item.href === "/sparks?tab=sparks" && sparks.open.length > 0}
         <span class="nav-count spark-count">{sparks.open.length}</span>
       {/if}
     </button>
@@ -116,5 +128,10 @@
   .spark-count {
     background: color-mix(in srgb, var(--accent) 15%, transparent);
     color: var(--accent);
+  }
+
+  .commit-count {
+    background: color-mix(in srgb, var(--oberon) 20%, transparent);
+    color: var(--oberon);
   }
 </style>

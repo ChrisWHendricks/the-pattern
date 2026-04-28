@@ -1,6 +1,12 @@
 <script lang="ts">
   import { commitments } from "$lib/stores/commitments.svelte";
+  import { sparks } from "$lib/stores/sparks.svelte";
   import { conversation } from "$lib/stores/conversation.svelte";
+
+  function demote(id: string, text: string) {
+    commitments.remove(id);
+    sparks.add(text);
+  }
 
   function formatDue(due?: string | null): string {
     if (!due) return "";
@@ -37,6 +43,18 @@
                 {#if item.due}<span class="meta-due">{formatDue(item.due)}</span>{/if}
               </div>
             {/if}
+          </div>
+          <div class="item-actions">
+            <button
+              class="action-icon demote-btn"
+              onclick={() => demote(item.id, item.text)}
+              title="Demote to spark"
+            >◇</button>
+            <button
+              class="action-icon delete-btn"
+              onclick={() => commitments.remove(item.id)}
+              title="Delete"
+            >✕</button>
           </div>
         </li>
       {/each}
@@ -86,6 +104,53 @@
     align-items: flex-start;
     gap: 6px;
     padding: 4px 0;
+  }
+
+  .item-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.12s;
+    margin-top: 1px;
+  }
+
+  .commitment-item:hover .item-actions {
+    opacity: 1;
+  }
+
+  .action-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    border-radius: 3px;
+    transition: color 0.12s, background 0.12s;
+  }
+
+  .demote-btn {
+    color: var(--text-dim);
+  }
+
+  .demote-btn:hover {
+    color: var(--oberon);
+    background: color-mix(in srgb, var(--oberon) 12%, transparent);
+  }
+
+  .delete-btn {
+    color: var(--text-dim);
+    font-size: 9px;
+  }
+
+  .delete-btn:hover {
+    color: #f87171;
+    background: color-mix(in srgb, #f87171 12%, transparent);
   }
 
   .check-btn {

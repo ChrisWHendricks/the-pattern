@@ -1,6 +1,7 @@
 import { triageBrainDump, type TriageItem, type TriageCategory } from "$lib/claude";
 import { settings } from "$lib/stores/settings.svelte";
 import { commitments } from "$lib/stores/commitments.svelte";
+import { sparks } from "$lib/stores/sparks.svelte";
 import { vault } from "$lib/stores/vault.svelte";
 import { loadChronicleEntry, saveChronicleEntry, todayDateStr, titleToFilename } from "$lib/vault";
 import { invoke } from "@tauri-apps/api/core";
@@ -42,6 +43,10 @@ function createBrainDumpStore() {
       switch (item.category) {
         case "commitment":
           commitments.add({ text: item.text });
+          break;
+
+        case "spark":
+          sparks.add(item.text);
           break;
 
         case "chronicle": {
