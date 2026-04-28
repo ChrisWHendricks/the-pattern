@@ -25,6 +25,9 @@
   let draftDevMode = $state(settings.devMode);
   let draftJiraBaseUrl = $state(settings.jiraBaseUrl);
   let draftJiraProjectsRaw = $state(settings.jiraProjects.join(", "));
+  let draftJiraEmail = $state(settings.jiraEmail);
+  let draftJiraApiToken = $state(settings.jiraApiToken);
+  let showJiraToken = $state(false);
   let systemVoiceNames = $state<string[]>([]);
   let showKey = $state(false);
   let showElKey = $state(false);
@@ -135,6 +138,8 @@
       draftDevMode,
       draftJiraBaseUrl.trim(),
       jiraProjects,
+      draftJiraEmail.trim(),
+      draftJiraApiToken.trim(),
     );
   }
 
@@ -470,6 +475,43 @@
             bind:value={draftJiraProjectsRaw}
             spellcheck={false}
           />
+        </div>
+
+        <div class="divider"></div>
+
+        <p class="block-label" style="margin-bottom: 4px;">API Token Access</p>
+        <p class="block-desc" style="margin-bottom: 14px;">Lets Oberon search issues, fetch details, create tickets, and add comments directly from chat. Generate a token at <strong>id.atlassian.com → Security → API tokens</strong>.</p>
+
+        {#if settings.jiraApiConnected}
+          <div class="jira-connected-badge">● Oberon can access Jira</div>
+        {/if}
+
+        <div class="setting-block">
+          <label class="block-label" for="jira-email">Atlassian Email</label>
+          <input
+            id="jira-email"
+            type="email"
+            placeholder="you@example.com"
+            bind:value={draftJiraEmail}
+            spellcheck={false}
+          />
+        </div>
+
+        <div class="setting-block" style="margin-top: 10px;">
+          <label class="block-label" for="jira-api-token">API Token</label>
+          <div class="key-wrap">
+            <input
+              id="jira-api-token"
+              type={showJiraToken ? "text" : "password"}
+              placeholder="ATATxxxxxxxx…"
+              bind:value={draftJiraApiToken}
+              autocomplete="off"
+              spellcheck={false}
+            />
+            <button class="show-btn" onclick={() => (showJiraToken = !showJiraToken)}>
+              {showJiraToken ? "Hide" : "Show"}
+            </button>
+          </div>
         </div>
 
       {:else if tab === "integrations"}
@@ -940,6 +982,18 @@
   }
 
   .close-btn:hover { background: var(--surface-hover); color: var(--text); }
+
+  /* ── Jira connected badge ─────────────────────────────────── */
+  .jira-connected-badge {
+    font-size: 11px;
+    color: #4ade80;
+    background: color-mix(in srgb, #4ade80 10%, transparent);
+    border: 1px solid color-mix(in srgb, #4ade80 25%, transparent);
+    border-radius: 6px;
+    padding: 4px 10px;
+    display: inline-block;
+    margin-bottom: 14px;
+  }
 
   /* ── Integrations ─────────────────────────────────────────── */
   .integration-row {

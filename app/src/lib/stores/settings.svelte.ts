@@ -34,6 +34,8 @@ function createSettings() {
   let knowledgeView = $state<KnowledgeView>((ls("oberon_knowledge_view") as KnowledgeView) || "contextual");
   let jiraBaseUrl = $state(ls("oberon_jira_base_url"));
   let jiraProjects = $state<string[]>(lsJson<string[]>("oberon_jira_projects", []));
+  let jiraEmail = $state(ls("oberon_jira_email"));
+  let jiraApiToken = $state(ls("oberon_jira_api_token"));
   let atlassianClientId = $state(ls("oberon_atlassian_client_id"));
   let atlassianAccessToken = $state(ls("oberon_atlassian_access_token"));
   let atlassianRefreshToken = $state(ls("oberon_atlassian_refresh_token"));
@@ -56,6 +58,9 @@ function createSettings() {
     get knowledgeView() { return knowledgeView; },
     get jiraBaseUrl() { return jiraBaseUrl; },
     get jiraProjects() { return jiraProjects; },
+    get jiraEmail() { return jiraEmail; },
+    get jiraApiToken() { return jiraApiToken; },
+    get jiraApiConnected() { return jiraBaseUrl.length > 0 && jiraEmail.length > 0 && jiraApiToken.length > 0; },
     get atlassianClientId() { return atlassianClientId; },
     get atlassianAccessToken() { return atlassianAccessToken; },
     get atlassianRefreshToken() { return atlassianRefreshToken; },
@@ -85,6 +90,8 @@ function createSettings() {
       newDevMode: boolean,
       newJiraBaseUrl: string,
       newJiraProjects: string[],
+      newJiraEmail: string,
+      newJiraApiToken: string,
     ) {
       apiKey = newKey;
       model = newModel;
@@ -100,6 +107,8 @@ function createSettings() {
       devMode = newDevMode;
       jiraBaseUrl = newJiraBaseUrl;
       jiraProjects = newJiraProjects;
+      jiraEmail = newJiraEmail;
+      jiraApiToken = newJiraApiToken;
       if (typeof localStorage !== "undefined") {
         localStorage.setItem("oberon_api_key", newKey);
         localStorage.setItem("oberon_model", newModel);
@@ -115,6 +124,8 @@ function createSettings() {
         localStorage.setItem("oberon_dev_mode", String(newDevMode));
         localStorage.setItem("oberon_jira_base_url", newJiraBaseUrl);
         localStorage.setItem("oberon_jira_projects", JSON.stringify(newJiraProjects));
+        localStorage.setItem("oberon_jira_email", newJiraEmail);
+        localStorage.setItem("oberon_jira_api_token", newJiraApiToken);
       }
       showSettingsDialog = false;
     },

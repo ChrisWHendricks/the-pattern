@@ -57,19 +57,38 @@ const ASSISTANT_MODE_SECTION = `
 ---
 **You are currently in Assistant mode.** Answer questions directly and helpfully — like a knowledgeable colleague, not an accountability coach. Do not volunteer coaching, push back on task framing, or redirect to "what do you need this for." Commitment extraction is paused. Just help.`;
 
+type PromptCapabilities = {
+  atlassianMcp?: boolean;
+  jiraApi?: boolean;
+  jiraBaseUrl?: string;
+  jiraProjects?: string[];
+};
+
 export function buildSystemPrompt(
   memories: string[] = [],
   vaultContext = "",
   mode: OberonMode = "coach",
-  atlassianConnected = false
+  capabilities: PromptCapabilities = {}
 ): string {
   let prompt = BASE_SYSTEM_PROMPT;
 
-  if (!atlassianConnected) {
+  if (!capabilities.atlassianMcp) {
     prompt = prompt.replace(
       "\n- **Atlassian** *(when connected)*: Read Jira issues, search Confluence, create and update issues",
       ""
     );
+  }
+
+  if (capabilities.jiraApi) {
+    const projects = capabilities.jiraProjects?.length
+      ? capabilities.jiraProjects.join(", ")
+      : "any project";
+    prompt += `\n\n---\n**Jira API** (direct access — use these tools proactively when the user asks about tickets or work):
+- \`search_jira_issues\`: JQL search. For personal queries use \`assignee = currentUser()\`. Projects: ${projects}.
+- \`get_jira_issue\`: Full details + recent comments for a specific key (e.g. JEDI-774).
+- \`create_jira_issue\`: Create a ticket. Issue types: Story, Bug, Task, Sub-task.
+- \`add_jira_comment\`: Add a comment to an issue.
+Always call \`get_jira_issue\` before commenting or updating so you have current context.`;
   }
 
   if (mode === "assistant") {
@@ -252,6 +271,55 @@ export const APP_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "search_jira_issues",
+    description: "Search Jira issues using JQL. Use this when the user asks about their tickets, open work, what's assigned to them, or anything Jira-related. Construct JQL from the question — e.g. `assignee = currentUser() AND status != Done ORDER BY updated DESC`.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        jql: { type: "string", description: "JQL query string" },
+        max_results: { type: "number", description: "Max issues to return (default 10, max 25)" },
+      },
+      required: ["jql"],
+    },
+  },
+  {
+    name: "get_jira_issue",
+    description: "Get full details of a specific Jira issue including description and recent comments.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        issue_key: { type: "string", description: "Jira issue key, e.g. JEDI-774" },
+      },
+      required: ["issue_key"],
+    },
+  },
+  {
+    name: "create_jira_issue",
+    description: "Create a new Jira issue. Ask the user for project_key and summary if not provided.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        project_key: { type: "string", description: "Jira project key, e.g. JEDI" },
+        issue_type: { type: "string", description: "Issue type: Story, Bug, Task, or Sub-task (default: Task)" },
+        summary: { type: "string", description: "Issue title/summary" },
+        description: { type: "string", description: "Optional issue description" },
+      },
+      required: ["project_key", "summary"],
+    },
+  },
+  {
+    name: "add_jira_comment",
+    description: "Add a comment to a Jira issue.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        issue_key: { type: "string", description: "Jira issue key, e.g. JEDI-774" },
+        comment: { type: "string", description: "Comment text (plain text, supports basic Jira markup)" },
+      },
+      required: ["issue_key", "comment"],
+    },
+  },
+  {
     name: "read_today_chronicle",
     description: "Read today's chronicle (daily journal entry) from the vault. Use this whenever the user asks about their day, what they wrote today, their daily notes, or anything that might be in today's entry.",
     input_schema: { type: "object" as const, properties: {} },
@@ -317,12 +385,12 @@ export async function* streamChat(
 ): AsyncGenerator<string> {
   const client = createClient(apiKey);
   const mcpToken = await ensureAtlassianToken();
-  const systemPrompt = buildSystemPrompt(
-    memories,
-    vaultContext,
-    options?.mode ?? "coach",
-    mcpToken !== null
-  );
+  const systemPrompt = buildSystemPrompt(memories, vaultContext, options?.mode ?? "coach", {
+    atlassianMcp: mcpToken !== null,
+    jiraApi: settings.jiraApiConnected,
+    jiraBaseUrl: settings.jiraBaseUrl,
+    jiraProjects: settings.jiraProjects,
+  });
   const hasTools = (options?.tools?.length ?? 0) > 0;
 
   // Phase 1: stream (yields text immediately; also collects blocks for tool round-trip)

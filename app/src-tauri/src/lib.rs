@@ -220,6 +220,194 @@ async fn atlassian_refresh_token(
     })
 }
 
+// ── Jira REST API commands ────────────────────────────────────────────────────
+
+fn jira_api_base(jira_base_url: &str) -> String {
+    // Strip /browse/... suffix to get the root: "https://host/browse/" → "https://host"
+    if let Some(idx) = jira_base_url.find("/browse") {
+        jira_base_url[..idx].to_owned()
+    } else {
+        jira_base_url.trim_end_matches('/').to_owned()
+    }
+}
+
+fn jira_auth_header(email: &str, token: &str) -> String {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    format!("Basic {}", STANDARD.encode(format!("{}:{}", email, token)))
+}
+
+/// Search Jira issues using JQL. Returns a compact JSON summary.
+#[tauri::command]
+async fn jira_search(
+    base_url: String,
+    email: String,
+    api_token: String,
+    jql: String,
+    max_results: Option<u32>,
+) -> Result<String, String> {
+    let api_base = jira_api_base(&base_url);
+    let max = max_results.unwrap_or(10).to_string();
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/rest/api/2/search", api_base))
+        .header("Authorization", jira_auth_header(&email, &api_token))
+        .header("Accept", "application/json")
+        .query(&[
+            ("jql", jql.as_str()),
+            ("maxResults", max.as_str()),
+            ("fields", "summary,status,assignee,priority,issuetype"),
+        ])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| format!("Jira API error: {}", e))?;
+
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let total = json["total"].as_u64().unwrap_or(0);
+    let issues: Vec<serde_json::Value> = json["issues"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|i| {
+                    let f = &i["fields"];
+                    serde_json::json!({
+                        "key": i["key"].as_str().unwrap_or(""),
+                        "summary": f["summary"].as_str().unwrap_or(""),
+                        "status": f["status"]["name"].as_str().unwrap_or(""),
+                        "assignee": f["assignee"]["displayName"].as_str().unwrap_or("Unassigned"),
+                        "priority": f["priority"]["name"].as_str().unwrap_or(""),
+                        "type": f["issuetype"]["name"].as_str().unwrap_or(""),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    serde_json::to_string(&serde_json::json!({ "total": total, "returned": issues.len(), "issues": issues }))
+        .map_err(|e| e.to_string())
+}
+
+/// Get full details of a single Jira issue including recent comments.
+#[tauri::command]
+async fn jira_get_issue(
+    base_url: String,
+    email: String,
+    api_token: String,
+    issue_key: String,
+) -> Result<String, String> {
+    let api_base = jira_api_base(&base_url);
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{}/rest/api/2/issue/{}", api_base, issue_key))
+        .header("Authorization", jira_auth_header(&email, &api_token))
+        .header("Accept", "application/json")
+        .query(&[("fields", "summary,status,assignee,priority,issuetype,description,comment")])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| format!("Jira API error: {}", e))?;
+
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let f = &json["fields"];
+    let comments: Vec<serde_json::Value> = f["comment"]["comments"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .rev()
+                .take(5)
+                .map(|c| serde_json::json!({
+                    "author": c["author"]["displayName"].as_str().unwrap_or(""),
+                    "body": c["body"].as_str().unwrap_or(""),
+                    "created": c["created"].as_str().unwrap_or(""),
+                }))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    serde_json::to_string(&serde_json::json!({
+        "key": json["key"].as_str().unwrap_or(""),
+        "summary": f["summary"].as_str().unwrap_or(""),
+        "status": f["status"]["name"].as_str().unwrap_or(""),
+        "assignee": f["assignee"]["displayName"].as_str().unwrap_or("Unassigned"),
+        "priority": f["priority"]["name"].as_str().unwrap_or(""),
+        "type": f["issuetype"]["name"].as_str().unwrap_or(""),
+        "description": f["description"].as_str().unwrap_or(""),
+        "recent_comments": comments,
+    }))
+    .map_err(|e| e.to_string())
+}
+
+/// Create a new Jira issue.
+#[tauri::command]
+async fn jira_create_issue(
+    base_url: String,
+    email: String,
+    api_token: String,
+    project_key: String,
+    issue_type: String,
+    summary: String,
+    description: Option<String>,
+) -> Result<String, String> {
+    let api_base = jira_api_base(&base_url);
+    let client = reqwest::Client::new();
+
+    let mut fields = serde_json::json!({
+        "project": { "key": project_key },
+        "issuetype": { "name": issue_type },
+        "summary": summary,
+    });
+    if let Some(desc) = description {
+        fields["description"] = serde_json::Value::String(desc);
+    }
+
+    let resp = client
+        .post(format!("{}/rest/api/2/issue", api_base))
+        .header("Authorization", jira_auth_header(&email, &api_token))
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .json(&serde_json::json!({ "fields": fields }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| format!("Jira API error: {}", e))?;
+
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    serde_json::to_string(&serde_json::json!({
+        "key": json["key"].as_str().unwrap_or(""),
+        "created": true,
+    }))
+    .map_err(|e| e.to_string())
+}
+
+/// Add a comment to an existing Jira issue.
+#[tauri::command]
+async fn jira_add_comment(
+    base_url: String,
+    email: String,
+    api_token: String,
+    issue_key: String,
+    comment: String,
+) -> Result<String, String> {
+    let api_base = jira_api_base(&base_url);
+    let client = reqwest::Client::new();
+    client
+        .post(format!("{}/rest/api/2/issue/{}/comment", api_base, issue_key))
+        .header("Authorization", jira_auth_header(&email, &api_token))
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .json(&serde_json::json!({ "body": comment }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| format!("Jira API error: {}", e))?;
+
+    Ok(format!("Comment added to {}", issue_key))
+}
+
 // ── Existing commands ────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -590,6 +778,10 @@ pub fn run() {
             atlassian_start_oauth,
             atlassian_exchange_code,
             atlassian_refresh_token,
+            jira_search,
+            jira_get_issue,
+            jira_create_issue,
+            jira_add_comment,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

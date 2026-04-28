@@ -20,6 +20,7 @@ import { loadChronicleEntry, saveChronicleEntry, todayDateStr } from "$lib/vault
 import { logrusStore } from "$lib/stores/logrus.svelte";
 import { logrusIcon } from "$lib/logrus";
 import { top3Store } from "$lib/stores/top3.svelte";
+import { invoke } from "@tauri-apps/api/core";
 
 export type Message = {
   id: string;
@@ -290,6 +291,67 @@ Open loops in vault: ${loops.length}
 ${loopLines || "None found"}
 
 Logrus inbox: ${logrusCount} item${logrusCount !== 1 ? "s" : ""} waiting${sparksSection}`;
+      }
+
+      case "search_jira_issues": {
+        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        try {
+          return await invoke<string>("jira_search", {
+            baseUrl: settings.jiraBaseUrl,
+            email: settings.jiraEmail,
+            apiToken: settings.jiraApiToken,
+            jql: input.jql as string,
+            maxResults: (input.max_results as number | undefined) ?? 10,
+          });
+        } catch (e) {
+          return `Jira search failed: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+
+      case "get_jira_issue": {
+        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        try {
+          return await invoke<string>("jira_get_issue", {
+            baseUrl: settings.jiraBaseUrl,
+            email: settings.jiraEmail,
+            apiToken: settings.jiraApiToken,
+            issueKey: input.issue_key as string,
+          });
+        } catch (e) {
+          return `Jira get issue failed: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+
+      case "create_jira_issue": {
+        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        try {
+          return await invoke<string>("jira_create_issue", {
+            baseUrl: settings.jiraBaseUrl,
+            email: settings.jiraEmail,
+            apiToken: settings.jiraApiToken,
+            projectKey: input.project_key as string,
+            issueType: (input.issue_type as string | undefined) ?? "Task",
+            summary: input.summary as string,
+            description: (input.description as string | undefined) ?? null,
+          });
+        } catch (e) {
+          return `Jira create issue failed: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+
+      case "add_jira_comment": {
+        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        try {
+          return await invoke<string>("jira_add_comment", {
+            baseUrl: settings.jiraBaseUrl,
+            email: settings.jiraEmail,
+            apiToken: settings.jiraApiToken,
+            issueKey: input.issue_key as string,
+            comment: input.comment as string,
+          });
+        } catch (e) {
+          return `Jira add comment failed: ${e instanceof Error ? e.message : String(e)}`;
+        }
       }
 
       default:
