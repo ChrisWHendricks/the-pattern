@@ -558,6 +558,34 @@ export async function* streamFocusChat(
   }
 }
 
+export async function generateDailyInsight(
+  apiKey: string,
+  commitmentsSummary: string,
+  top3Summary: string
+): Promise<string> {
+  const client = createClient(apiKey);
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+  const response = await client.messages.create({
+    model: MODELS.haiku,
+    max_tokens: 80,
+    messages: [
+      {
+        role: "user",
+        content: `Write a single 1-2 sentence insight or observation for Chris's ${timeOfDay} briefing. Be direct, specific, and useful — not generic. Draw from his situation below. No intro phrase, no "Good morning" — just the insight itself.
+
+Commitments: ${commitmentsSummary || "none"}
+Today's priorities: ${top3Summary || "not set"}
+
+Insight:`,
+      },
+    ],
+  });
+
+  return response.content[0].type === "text" ? response.content[0].text.trim() : "";
+}
+
 export function getMorningTrigger(openCommitmentsSummary?: string): string {
   const hour = new Date().getHours();
   const commitmentContext = openCommitmentsSummary

@@ -4,6 +4,7 @@
   import { sparks } from "$lib/stores/sparks.svelte";
 
   const dailyItems = [
+    { label: "Morning",    icon: "☀", href: "/morning" },
     { label: "Cockpit",    icon: "⬟", href: "/cockpit" },
     { label: "Top 3",      icon: "≡", href: "/top3" },
     { label: "Focus",      icon: "◎", href: "/focus" },
