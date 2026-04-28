@@ -6,9 +6,7 @@
   import { logrusStore } from "$lib/stores/logrus.svelte";
 
   const dailyItems = [
-    { label: "Morning",    icon: "☀", href: "/morning" },
-    { label: "Cockpit",    icon: "⬟", href: "/cockpit" },
-    { label: "Mission",    icon: "⬡", href: "/mission" },
+    { label: "Home",       icon: "☀", href: "/home" },
     { label: "Top 3",      icon: "≡", href: "/top3" },
     { label: "Focus",      icon: "◎", href: "/focus" },
     { label: "Brain Dump", icon: "⟁", href: "/brain-dump" },

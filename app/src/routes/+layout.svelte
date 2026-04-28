@@ -14,7 +14,6 @@
   let { children } = $props();
 
   let isCapture = $derived($page.url.pathname === "/capture");
-  let isCockpit = $derived($page.url.pathname === "/cockpit");
 
   let captureToast = $state<string | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -65,7 +64,7 @@
       {@render children()}
     </div>
 
-    {#if layoutStore.oberonOpen && !isCockpit}
+    {#if layoutStore.oberonOpen}
       <ResizeHandle onDelta={(d) => layoutStore.resizeOberon(d)} />
       <div class="oberon-col" style="width: {layoutStore.oberonWidth}px">
         <OberonPanel />

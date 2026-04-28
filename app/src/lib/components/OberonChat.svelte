@@ -3,7 +3,7 @@
   import { settings } from "$lib/stores/settings.svelte";
   import { vault } from "$lib/stores/vault.svelte";
   import { voice } from "$lib/voice.svelte";
-  import { page } from "$app/stores";
+
   import MessageBubble from "./MessageBubble.svelte";
 
   let input = $state("");
@@ -21,7 +21,7 @@
   });
 
   $effect(() => {
-    if (settings.hasApiKey && conversation.isEmpty && $page.url.pathname !== "/cockpit") {
+    if (settings.hasApiKey && conversation.isEmpty) {
       conversation.startMorningBriefing();
     }
   });
