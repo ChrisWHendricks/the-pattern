@@ -9,6 +9,9 @@
   import { shadowsStore } from "$lib/stores/shadows.svelte";
   import { vault } from "$lib/stores/vault.svelte";
   import { chronicles } from "$lib/stores/chronicles.svelte";
+  import ContextMenu from "$lib/components/ContextMenu.svelte";
+  import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
+  import type { InscriptionFile } from "$lib/vault";
 
   const dailyItems = [
     { label: "Home",        icon: "☀", href: "/home" },
@@ -74,6 +77,28 @@
   function getShadowInscriptions(shadowId: string) {
     const paths = shadowsStore.getInscriptionPaths(shadowId);
     return vault.inscriptions.filter((i) => paths.includes(i.path));
+  }
+
+  let contextMenu = $state<{ x: number; y: number; inscription: InscriptionFile } | null>(null);
+
+  function onInscriptionContextMenu(e: MouseEvent, inscription: InscriptionFile) {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenu = { x: e.clientX, y: e.clientY, inscription };
+  }
+
+  function inscriptionMenuItems(inscription: InscriptionFile): MenuEntry[] {
+    return [
+      {
+        label: "Delete Inscription",
+        danger: true,
+        action: () => {
+          if (confirm(`Delete "${inscription.title}"? This cannot be undone.`)) {
+            vault.removeInscription(inscription.path);
+          }
+        },
+      },
+    ];
   }
 
   function formatDateLabel(dateStr: string): string {
@@ -194,6 +219,7 @@
                       vault.openInscription(inscription);
                       goto(`/shadows/${shadow.id}`);
                     }}
+                    oncontextmenu={(e) => onInscriptionContextMenu(e, inscription)}
                     title={inscription.title}
                   >
                     <span class="sub-icon">◻</span>
@@ -281,6 +307,7 @@
                   class="inscription-item"
                   class:active={vault.currentInscription?.path === inscription.path}
                   onclick={() => vault.openInscription(inscription)}
+                  oncontextmenu={(e) => onInscriptionContextMenu(e, inscription)}
                   title={inscription.title}
                 >
                   <span class="sub-icon">◻</span>
@@ -344,6 +371,15 @@
     {/if}
   </div>
 </div>
+
+{#if contextMenu}
+  <ContextMenu
+    x={contextMenu.x}
+    y={contextMenu.y}
+    items={inscriptionMenuItems(contextMenu.inscription)}
+    onClose={() => (contextMenu = null)}
+  />
+{/if}
 
 <style>
   .tree-nav {

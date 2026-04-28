@@ -18,6 +18,7 @@ function createVaultStore() {
   let searchIndex = $state<IndexedInscription[]>([]);
   let currentInscription = $state<InscriptionFile | null>(null);
   let currentContent = $state("");
+  let openEpoch = $state(0);
   let isLoading = $state(false);
   let isSaving = $state(false);
   let isIndexing = $state(false);
@@ -63,6 +64,7 @@ function createVaultStore() {
       currentContent = await readInscription(inscription.path);
       currentInscription = inscription;
       isDirty = false;
+      openEpoch++;
 
       const idx = searchIndex.findIndex((n) => n.path === inscription.path);
       if (idx !== -1) {
@@ -159,6 +161,7 @@ function createVaultStore() {
     get searchIndex() { return searchIndex; },
     get currentInscription() { return currentInscription; },
     get currentContent() { return currentContent; },
+    get openEpoch() { return openEpoch; },
     get isLoading() { return isLoading; },
     get isSaving() { return isSaving; },
     get isIndexing() { return isIndexing; },

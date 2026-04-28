@@ -10,6 +10,9 @@
   import { artifactTypeIcon } from "$lib/artifacts";
   import Editor from "$lib/components/Editor.svelte";
   import ResizeHandle from "$lib/components/ResizeHandle.svelte";
+  import ContextMenu from "$lib/components/ContextMenu.svelte";
+  import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
+  import type { InscriptionFile } from "$lib/vault";
   import { layoutStore } from "$lib/stores/layout.svelte";
 
   type Tab = "shadows" | "inscriptions" | "chronicles";
@@ -102,6 +105,35 @@
 
   async function handleSave(markdown: string) {
     await vault.saveCurrentInscription(markdown);
+  }
+
+  let contextMenu = $state<{ x: number; y: number; inscription: InscriptionFile; shadowId?: string } | null>(null);
+
+  function onInscriptionContextMenu(e: MouseEvent, inscription: InscriptionFile, shadowId?: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenu = { x: e.clientX, y: e.clientY, inscription, shadowId };
+  }
+
+  function inscriptionMenuItems(inscription: InscriptionFile, shadowId?: string): MenuEntry[] {
+    const items: MenuEntry[] = [];
+    if (shadowId) {
+      items.push({
+        label: "Remove from Shadow",
+        action: () => shadowsStore.unassign(shadowId, inscription.path),
+      });
+      items.push({ separator: true });
+    }
+    items.push({
+      label: "Delete Inscription",
+      danger: true,
+      action: () => {
+        if (confirm(`Delete "${inscription.title}"? This cannot be undone.`)) {
+          vault.removeInscription(inscription.path);
+        }
+      },
+    });
+    return items;
   }
 
   function formatDateLabel(dateStr: string): string {
@@ -231,6 +263,7 @@
                   <button
                     class="inscription-select"
                     onclick={() => vault.openInscription(inscription)}
+                    oncontextmenu={(e) => onInscriptionContextMenu(e, inscription, selectedShadowId ?? undefined)}
                   >
                     <span class="item-icon">◻</span>
                     <span class="item-title">{inscription.title}</span>
@@ -254,7 +287,7 @@
               <p>Configure your vault in Settings to start writing.</p>
             </div>
           {:else if vault.currentInscription && shadowInscriptions.some((i) => i.path === vault.currentInscription?.path)}
-            {#key vault.currentInscription.path}
+            {#key vault.openEpoch}
               <Editor
                 content={vault.currentContent}
                 onSave={handleSave}
@@ -313,6 +346,7 @@
                 class="shadow-row"
                 class:active={vault.currentInscription?.path === inscription.path}
                 onclick={() => vault.openInscription(inscription)}
+                oncontextmenu={(e) => onInscriptionContextMenu(e, inscription)}
               >
                 <span class="row-icon">◻</span>
                 <span class="row-name">{inscription.title}</span>
@@ -334,7 +368,7 @@
             <p>Configure your vault in Settings to start writing.</p>
           </div>
         {:else if vault.currentInscription}
-          {#key vault.currentInscription.path}
+          {#key vault.openEpoch}
             <Editor
               content={vault.currentContent}
               onSave={handleSave}
@@ -430,6 +464,15 @@
 
   </div>
 </div>
+
+{#if contextMenu}
+  <ContextMenu
+    x={contextMenu.x}
+    y={contextMenu.y}
+    items={inscriptionMenuItems(contextMenu.inscription, contextMenu.shadowId)}
+    onClose={() => (contextMenu = null)}
+  />
+{/if}
 
 <style>
   .knowledge-layout {

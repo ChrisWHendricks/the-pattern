@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { Editor } from "@tiptap/core";
   import StarterKit from "@tiptap/starter-kit";
   import Placeholder from "@tiptap/extension-placeholder";
@@ -46,11 +47,23 @@
     codeBlockStyle: "fenced",
   });
 
+  // Preserve empty paragraphs through the markdown round-trip.
+  // TurndownService's default paragraph rule drops empty <p> nodes entirely.
+  // We save them as &nbsp; lines; toHtml restores them before marked runs.
+  td.addRule("emptyParagraph", {
+    filter: (node: HTMLElement) =>
+      node.nodeName === "P" && !node.textContent?.trim(),
+    replacement: () => "&nbsp;",
+  });
+
   function toHtml(md: string): string {
     try {
+      // Restore empty paragraphs that were saved as &nbsp; sentinel lines.
+      // marked passes raw <p></p> HTML blocks through untouched.
+      const withBlanks = md.replace(/^&nbsp;$/gm, "<p></p>");
       const processed = settings.jiraBaseUrl
-        ? linkifyMarkdown(md, settings.jiraBaseUrl, settings.jiraProjects)
-        : md;
+        ? linkifyMarkdown(withBlanks, settings.jiraBaseUrl, settings.jiraProjects)
+        : withBlanks;
       return marked.parse(processed, { async: false }) as string;
     } catch {
       return md;
@@ -72,6 +85,8 @@
   $effect(() => {
     const el = editorEl;
     if (!el) return;
+
+    const initialContent = untrack(() => content);
 
     const e = new Editor({
       element: el,
@@ -96,7 +111,7 @@
           },
         }),
       ],
-      content: toHtml(content),
+      content: toHtml(initialContent),
       editorProps: {
         attributes: { class: "prose-editor" },
       },

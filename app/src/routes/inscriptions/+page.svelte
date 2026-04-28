@@ -44,7 +44,7 @@
           </button>
         </div>
       {:else if vault.currentInscription}
-        {#key vault.currentInscription.path}
+        {#key vault.openEpoch}
           <Editor
             content={vault.currentContent}
             onSave={handleSave}
