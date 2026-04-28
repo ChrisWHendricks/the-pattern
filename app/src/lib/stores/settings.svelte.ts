@@ -34,6 +34,10 @@ function createSettings() {
   let knowledgeView = $state<KnowledgeView>((ls("oberon_knowledge_view") as KnowledgeView) || "contextual");
   let jiraBaseUrl = $state(ls("oberon_jira_base_url"));
   let jiraProjects = $state<string[]>(lsJson<string[]>("oberon_jira_projects", []));
+  let atlassianClientId = $state(ls("oberon_atlassian_client_id"));
+  let atlassianAccessToken = $state(ls("oberon_atlassian_access_token"));
+  let atlassianRefreshToken = $state(ls("oberon_atlassian_refresh_token"));
+  let atlassianTokenExpiry = $state(Number(ls("oberon_atlassian_token_expiry")) || 0);
   let showSettingsDialog = $state(false);
 
   return {
@@ -52,6 +56,11 @@ function createSettings() {
     get knowledgeView() { return knowledgeView; },
     get jiraBaseUrl() { return jiraBaseUrl; },
     get jiraProjects() { return jiraProjects; },
+    get atlassianClientId() { return atlassianClientId; },
+    get atlassianAccessToken() { return atlassianAccessToken; },
+    get atlassianRefreshToken() { return atlassianRefreshToken; },
+    get atlassianTokenExpiry() { return atlassianTokenExpiry; },
+    get atlassianConnected() { return atlassianAccessToken.length > 0; },
     get showSettingsDialog() { return showSettingsDialog; },
     get hasApiKey() { return apiKey.length > 0; },
 
@@ -108,6 +117,37 @@ function createSettings() {
         localStorage.setItem("oberon_jira_projects", JSON.stringify(newJiraProjects));
       }
       showSettingsDialog = false;
+    },
+
+    setAtlassianTokens(params: {
+      clientId: string;
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }) {
+      atlassianClientId = params.clientId;
+      atlassianAccessToken = params.accessToken;
+      atlassianRefreshToken = params.refreshToken;
+      atlassianTokenExpiry = Date.now() + params.expiresIn * 1000;
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("oberon_atlassian_client_id", params.clientId);
+        localStorage.setItem("oberon_atlassian_access_token", params.accessToken);
+        localStorage.setItem("oberon_atlassian_refresh_token", params.refreshToken);
+        localStorage.setItem("oberon_atlassian_token_expiry", String(atlassianTokenExpiry));
+      }
+    },
+
+    clearAtlassian() {
+      atlassianClientId = "";
+      atlassianAccessToken = "";
+      atlassianRefreshToken = "";
+      atlassianTokenExpiry = 0;
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem("oberon_atlassian_client_id");
+        localStorage.removeItem("oberon_atlassian_access_token");
+        localStorage.removeItem("oberon_atlassian_refresh_token");
+        localStorage.removeItem("oberon_atlassian_token_expiry");
+      }
     },
 
     openSettings() { showSettingsDialog = true; },

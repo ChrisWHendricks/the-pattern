@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
@@ -27,6 +28,199 @@ unsafe fn call_block_usize(block: *mut c_void, arg: usize) {
     let invoke: Fn = std::mem::transmute((*(block as *mut BlockLiteral)).invoke);
     invoke(block, arg);
 }
+
+// ── Atlassian OAuth in-flight state ─────────────────────────────────────────
+
+#[derive(Default)]
+struct AtlassianOAuthState {
+    code_verifier: Option<String>,
+    state_param: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct StartOAuthResponse {
+    auth_url: String,
+    client_id: String,
+}
+
+#[derive(serde::Serialize)]
+struct TokenResponse {
+    access_token: String,
+    refresh_token: Option<String>,
+    expires_in: u64,
+    client_id: String,
+}
+
+/// Start the Atlassian OAuth flow. Registers a dynamic client if no client_id
+/// is provided, generates PKCE, and returns the authorization URL + client_id.
+#[tauri::command]
+async fn atlassian_start_oauth(
+    existing_client_id: Option<String>,
+    app_state: tauri::State<'_, Mutex<AtlassianOAuthState>>,
+) -> Result<StartOAuthResponse, String> {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use rand::RngCore;
+    use sha2::{Digest, Sha256};
+
+    let client_id = match existing_client_id {
+        Some(id) if !id.is_empty() => id,
+        _ => {
+            let http = reqwest::Client::new();
+            let body = serde_json::json!({
+                "client_name": "The Pattern",
+                "redirect_uris": ["thepattern://atlassian/callback"],
+                "grant_types": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_method": "none"
+            });
+            let resp = http
+                .post("https://cf.mcp.atlassian.com/v1/register")
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+            let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+            json["client_id"]
+                .as_str()
+                .ok_or("no client_id in registration response")?
+                .to_owned()
+        }
+    };
+
+    let mut verifier_bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut verifier_bytes);
+    let code_verifier = URL_SAFE_NO_PAD.encode(&verifier_bytes);
+
+    let mut hasher = Sha256::new();
+    hasher.update(code_verifier.as_bytes());
+    let code_challenge = URL_SAFE_NO_PAD.encode(&hasher.finalize());
+
+    let mut state_bytes = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut state_bytes);
+    let state_param = URL_SAFE_NO_PAD.encode(&state_bytes);
+
+    {
+        let mut s = app_state.lock().unwrap();
+        s.code_verifier = Some(code_verifier);
+        s.state_param = Some(state_param.clone());
+    }
+
+    let auth_url = format!(
+        "https://mcp.atlassian.com/v1/authorize?response_type=code&client_id={}&redirect_uri={}&code_challenge={}&code_challenge_method=S256&state={}",
+        urlencoding::encode(&client_id),
+        urlencoding::encode("thepattern://atlassian/callback"),
+        urlencoding::encode(&code_challenge),
+        urlencoding::encode(&state_param),
+    );
+
+    Ok(StartOAuthResponse { auth_url, client_id })
+}
+
+/// Exchange the authorization code for tokens. Verifies the state param (CSRF).
+#[tauri::command]
+async fn atlassian_exchange_code(
+    code: String,
+    state_received: String,
+    client_id: String,
+    app_state: tauri::State<'_, Mutex<AtlassianOAuthState>>,
+) -> Result<TokenResponse, String> {
+    let (code_verifier, stored_state) = {
+        let s = app_state.lock().unwrap();
+        (
+            s.code_verifier.clone().ok_or("no code_verifier in state")?,
+            s.state_param.clone().ok_or("no state_param in state")?,
+        )
+    };
+
+    if stored_state != state_received {
+        return Err("state mismatch — possible CSRF attack".into());
+    }
+
+    let http = reqwest::Client::new();
+    let params = vec![
+        ("grant_type", "authorization_code"),
+        ("code", code.as_str()),
+        ("redirect_uri", "thepattern://atlassian/callback"),
+        ("client_id", client_id.as_str()),
+        ("code_verifier", code_verifier.as_str()),
+    ];
+
+    let resp = http
+        .post("https://cf.mcp.atlassian.com/v1/token")
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    if let Some(err) = json["error"].as_str() {
+        return Err(format!(
+            "token error: {} — {}",
+            err,
+            json["error_description"].as_str().unwrap_or("(no description)")
+        ));
+    }
+
+    // Clear in-flight state
+    {
+        let mut s = app_state.lock().unwrap();
+        s.code_verifier = None;
+        s.state_param = None;
+    }
+
+    Ok(TokenResponse {
+        access_token: json["access_token"]
+            .as_str()
+            .ok_or("no access_token in response")?
+            .to_owned(),
+        refresh_token: json["refresh_token"].as_str().map(|s| s.to_owned()),
+        expires_in: json["expires_in"].as_u64().unwrap_or(3600),
+        client_id,
+    })
+}
+
+/// Refresh an Atlassian access token using a stored refresh token.
+#[tauri::command]
+async fn atlassian_refresh_token(
+    refresh_token: String,
+    client_id: String,
+) -> Result<TokenResponse, String> {
+    let http = reqwest::Client::new();
+    let params = vec![
+        ("grant_type", "refresh_token"),
+        ("refresh_token", refresh_token.as_str()),
+        ("client_id", client_id.as_str()),
+    ];
+
+    let resp = http
+        .post("https://cf.mcp.atlassian.com/v1/token")
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+
+    if let Some(err) = json["error"].as_str() {
+        return Err(format!(
+            "refresh error: {} — {}",
+            err,
+            json["error_description"].as_str().unwrap_or("(no description)")
+        ));
+    }
+
+    Ok(TokenResponse {
+        access_token: json["access_token"]
+            .as_str()
+            .ok_or("no access_token in response")?
+            .to_owned(),
+        refresh_token: json["refresh_token"].as_str().map(|s| s.to_owned()),
+        expires_in: json["expires_in"].as_u64().unwrap_or(3600),
+        client_id,
+    })
+}
+
+// ── Existing commands ────────────────────────────────────────────────────────
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -292,7 +486,10 @@ fn install_media_permission_delegate(win: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri_plugin_deep_link::DeepLinkExt;
+
     tauri::Builder::default()
+        .manage(Mutex::new(AtlassianOAuthState::default()))
         .register_uri_scheme_protocol("vault", |_app, request| {
             let uri = request.uri().to_string();
             // vault://localhost/absolute/path/to/file  (path segments are percent-encoded)
@@ -334,6 +531,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -363,6 +561,14 @@ pub fn run() {
         .setup(|app| {
             app.global_shortcut().register("CmdOrCtrl+Shift+K")?;
 
+            // Route thepattern:// deep links to the frontend
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    let _ = handle.emit("atlassian-deep-link", url.to_string());
+                }
+            });
+
             #[cfg(target_os = "macos")]
             if let Some(main_win) = app.get_webview_window("main") {
                 install_media_permission_delegate(&main_win);
@@ -381,6 +587,9 @@ pub fn run() {
             write_text_file,
             delete_file,
             list_dir,
+            atlassian_start_oauth,
+            atlassian_exchange_code,
+            atlassian_refresh_token,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

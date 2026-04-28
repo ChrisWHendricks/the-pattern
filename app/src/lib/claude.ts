@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { invoke } from "@tauri-apps/api/core";
+import { settings } from "$lib/stores/settings.svelte";
 
 export const MODELS = {
   haiku: "claude-haiku-4-5-20251001",
@@ -38,6 +40,7 @@ The Pattern app capabilities you can reference and invoke:
 - **Sparks**: captured intentions — things Chris wants to explore or do eventually, but with no current deadline. Not commitments, just parked aspirations. Surface these during morning briefings.
 - **Issue Tracker**: defects and feature requests for The Pattern app itself
 - **Voice I/O**: microphone for voice input, TTS for voice output (configured in Settings → Voice)
+- **Atlassian** *(when connected)*: Read Jira issues, search Confluence, create and update issues
 
 Actions you can perform — use tool calls, never say you "can't do" these:
 - Add a commitment, list open commitments, mark a commitment complete, delete a commitment, demote a commitment to a spark
@@ -57,9 +60,17 @@ const ASSISTANT_MODE_SECTION = `
 export function buildSystemPrompt(
   memories: string[] = [],
   vaultContext = "",
-  mode: OberonMode = "coach"
+  mode: OberonMode = "coach",
+  atlassianConnected = false
 ): string {
   let prompt = BASE_SYSTEM_PROMPT;
+
+  if (!atlassianConnected) {
+    prompt = prompt.replace(
+      "\n- **Atlassian** *(when connected)*: Read Jira issues, search Confluence, create and update issues",
+      ""
+    );
+  }
 
   if (mode === "assistant") {
     prompt += ASSISTANT_MODE_SECTION;
@@ -264,6 +275,28 @@ export function createClient(apiKey: string): Anthropic {
   return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 }
 
+async function ensureAtlassianToken(): Promise<string | null> {
+  if (!settings.atlassianConnected) return null;
+  if (Date.now() > settings.atlassianTokenExpiry - 5 * 60 * 1000) {
+    const result = await invoke<{
+      access_token: string;
+      refresh_token: string | null;
+      expires_in: number;
+      client_id: string;
+    }>("atlassian_refresh_token", {
+      refreshToken: settings.atlassianRefreshToken,
+      clientId: settings.atlassianClientId,
+    });
+    settings.setAtlassianTokens({
+      clientId: result.client_id,
+      accessToken: result.access_token,
+      refreshToken: result.refresh_token ?? "",
+      expiresIn: result.expires_in,
+    });
+  }
+  return settings.atlassianAccessToken;
+}
+
 type CollectedBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
@@ -283,17 +316,42 @@ export async function* streamChat(
   }
 ): AsyncGenerator<string> {
   const client = createClient(apiKey);
-  const systemPrompt = buildSystemPrompt(memories, vaultContext, options?.mode ?? "coach");
+  const mcpToken = await ensureAtlassianToken();
+  const systemPrompt = buildSystemPrompt(
+    memories,
+    vaultContext,
+    options?.mode ?? "coach",
+    mcpToken !== null
+  );
   const hasTools = (options?.tools?.length ?? 0) > 0;
 
   // Phase 1: stream (yields text immediately; also collects blocks for tool round-trip)
-  const stream = client.messages.stream({
+  // When Atlassian is connected, use the beta MCP streaming API.
+  const baseParams = {
     model: MODELS[model],
     max_tokens: 1024,
     system: systemPrompt,
     messages: messages as Anthropic.Messages.MessageParam[],
-    ...(hasTools ? { tools: options!.tools } : {}),
-  });
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stream = mcpToken
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client.beta.messages as any).stream({
+        ...baseParams,
+        ...(hasTools ? { tools: [...options!.tools!, { type: "mcp_toolset", mcp_server_name: "atlassian" }] } : {}),
+        betas: ["mcp-client-2025-11-20"],
+        mcp_servers: [{
+          type: "url",
+          url: "https://mcp.atlassian.com/v1/mcp",
+          name: "atlassian",
+          authorization_token: mcpToken,
+        }],
+      })
+    : client.messages.stream({
+        ...baseParams,
+        ...(hasTools ? { tools: options!.tools } : {}),
+      });
 
   const collectedBlocks: CollectedBlock[] = [];
   let blockIndex = -1;
@@ -304,15 +362,14 @@ export async function* streamChat(
     if (event.type === "content_block_start") {
       blockIndex++;
       toolInputJson = "";
-      if (event.content_block.type === "text") {
+      const cbType = (event.content_block as { type: string }).type;
+      if (cbType === "text") {
         collectedBlocks.push({ type: "text", text: "" });
-      } else if (event.content_block.type === "tool_use") {
-        collectedBlocks.push({
-          type: "tool_use",
-          id: event.content_block.id,
-          name: event.content_block.name,
-          input: {},
-        });
+      } else if (cbType === "tool_use") {
+        const cb = event.content_block as { id: string; name: string };
+        collectedBlocks.push({ type: "tool_use", id: cb.id, name: cb.name, input: {} });
+      } else if (cbType === "mcp_tool_use") {
+        yield "\n*[Checking Atlassian…]*\n";
       }
     } else if (event.type === "content_block_delta") {
       if (event.delta.type === "text_delta") {

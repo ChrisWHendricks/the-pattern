@@ -4,8 +4,10 @@
   import { MODELS, type ModelKey } from "$lib/claude";
   import { homeDir } from "@tauri-apps/api/path";
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+  import { openUrl } from "@tauri-apps/plugin-opener";
 
-  type Tab = "oberon" | "vault" | "voice" | "jira";
+  type Tab = "oberon" | "vault" | "voice" | "jira" | "integrations";
 
   let tab = $state<Tab>("oberon");
 
@@ -31,11 +33,68 @@
   const OPENAI_VOICES = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] as const;
 
   const TABS: { id: Tab; icon: string; label: string }[] = [
-    { id: "oberon", icon: "⬡", label: "Oberon" },
-    { id: "vault",  icon: "◫", label: "Vault" },
-    { id: "voice",  icon: "◎", label: "Voice" },
-    { id: "jira",   icon: "◈", label: "Jira" },
+    { id: "oberon",        icon: "⬡", label: "Oberon" },
+    { id: "vault",         icon: "◫", label: "Vault" },
+    { id: "voice",         icon: "◎", label: "Voice" },
+    { id: "jira",          icon: "◈", label: "Jira" },
+    { id: "integrations",  icon: "◉", label: "Integrations" },
   ];
+
+  let connecting = $state(false);
+
+  async function handleAtlassianConnect() {
+    connecting = true;
+    try {
+      const { auth_url, client_id } = await invoke<{ auth_url: string; client_id: string }>(
+        "atlassian_start_oauth",
+        { existingClientId: settings.atlassianClientId || null }
+      );
+
+      // Wire up a resolve/reject pair so the listener can settle the promise
+      let resolveToken!: () => void;
+      let rejectToken!: (e: unknown) => void;
+      const tokenPromise = new Promise<void>((res, rej) => {
+        resolveToken = res;
+        rejectToken = rej;
+      });
+
+      const timer = setTimeout(() => rejectToken(new Error("OAuth timeout")), 120_000);
+
+      // Register listener before opening browser; user auth takes seconds so
+      // the listener is guaranteed active before any callback arrives.
+      listen<string>("atlassian-deep-link", (event) => {
+        clearTimeout(timer);
+        const url = new URL(event.payload);
+        const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
+        if (!code || !state) { rejectToken(new Error("Missing code or state in callback")); return; }
+
+        invoke<{
+          access_token: string;
+          refresh_token: string | null;
+          expires_in: number;
+          client_id: string;
+        }>("atlassian_exchange_code", { code, stateReceived: state, clientId: client_id })
+          .then((result) => {
+            settings.setAtlassianTokens({
+              clientId: result.client_id,
+              accessToken: result.access_token,
+              refreshToken: result.refresh_token ?? "",
+              expiresIn: result.expires_in,
+            });
+            resolveToken();
+          })
+          .catch(rejectToken);
+      });
+
+      await openUrl(auth_url);
+      await tokenPromise;
+    } catch (e) {
+      console.error("Atlassian connect failed:", e);
+    } finally {
+      connecting = false;
+    }
+  }
 
   onMount(() => {
     if (!draftVaultPath) {
@@ -411,6 +470,38 @@
             bind:value={draftJiraProjectsRaw}
             spellcheck={false}
           />
+        </div>
+
+      {:else if tab === "integrations"}
+        <h2 class="section-title">Integrations</h2>
+
+        <div class="integration-row">
+          <div class="integration-info">
+            <div class="integration-header">
+              <span class="integration-name">Atlassian</span>
+              {#if settings.atlassianConnected}
+                <span class="status-chip connected">● Connected</span>
+              {:else}
+                <span class="status-chip disconnected">○ Not connected</span>
+              {/if}
+            </div>
+            <p class="integration-desc">Gives Oberon access to your Jira issues and Confluence pages.</p>
+          </div>
+          <div class="integration-actions">
+            {#if settings.atlassianConnected}
+              <button class="btn-disconnect" onclick={() => settings.clearAtlassian()}>
+                Disconnect
+              </button>
+            {:else}
+              <button
+                class="btn-connect"
+                onclick={handleAtlassianConnect}
+                disabled={connecting}
+              >
+                {connecting ? "Connecting…" : "Connect"}
+              </button>
+            {/if}
+          </div>
         </div>
 
       {/if}
@@ -849,4 +940,82 @@
   }
 
   .close-btn:hover { background: var(--surface-hover); color: var(--text); }
+
+  /* ── Integrations ─────────────────────────────────────────── */
+  .integration-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+  }
+
+  .integration-info { flex: 1; }
+
+  .integration-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .integration-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .integration-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .status-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+
+  .status-chip.connected {
+    color: #4ade80;
+    background: color-mix(in srgb, #4ade80 12%, transparent);
+  }
+
+  .status-chip.disconnected {
+    color: var(--text-dim);
+    background: color-mix(in srgb, var(--text-dim) 10%, transparent);
+  }
+
+  .integration-actions { flex-shrink: 0; padding-top: 2px; }
+
+  .btn-connect {
+    padding: 6px 14px;
+    background: var(--accent);
+    border: none;
+    border-radius: 7px;
+    color: #000;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-connect:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-connect:not(:disabled):hover { opacity: 0.85; }
+
+  .btn-disconnect {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .btn-disconnect:hover { color: #f87171; border-color: #f87171; }
 </style>
