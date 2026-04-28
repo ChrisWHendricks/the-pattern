@@ -25,6 +25,7 @@
   let draftDevMode = $state(settings.devMode);
   let draftJiraBaseUrl = $state(settings.jiraBaseUrl);
   let draftJiraProjectsRaw = $state(settings.jiraProjects.join(", "));
+  let draftJiraApiUrl = $state(settings.jiraApiUrl);
   let draftJiraEmail = $state(settings.jiraEmail);
   let draftJiraApiToken = $state(settings.jiraApiToken);
   let showJiraToken = $state(false);
@@ -138,6 +139,7 @@
       draftDevMode,
       draftJiraBaseUrl.trim(),
       jiraProjects,
+      draftJiraApiUrl.trim(),
       draftJiraEmail.trim(),
       draftJiraApiToken.trim(),
     );
@@ -487,6 +489,18 @@
         {/if}
 
         <div class="setting-block">
+          <label class="block-label" for="jira-api-url">API URL</label>
+          <p class="block-desc">Base URL for the Jira REST API. This may differ from the browse URL above — check with your admin.</p>
+          <input
+            id="jira-api-url"
+            type="text"
+            placeholder="https://yourcompany.atlassian.net/rest/api/3"
+            bind:value={draftJiraApiUrl}
+            spellcheck={false}
+          />
+        </div>
+
+        <div class="setting-block" style="margin-top: 10px;">
           <label class="block-label" for="jira-email">Atlassian Email</label>
           <input
             id="jira-email"

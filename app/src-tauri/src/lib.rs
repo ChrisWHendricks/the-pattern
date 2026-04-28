@@ -222,15 +222,6 @@ async fn atlassian_refresh_token(
 
 // ── Jira REST API commands ────────────────────────────────────────────────────
 
-fn jira_api_base(jira_base_url: &str) -> String {
-    // Strip /browse/... suffix to get the root: "https://host/browse/" → "https://host"
-    if let Some(idx) = jira_base_url.find("/browse") {
-        jira_base_url[..idx].to_owned()
-    } else {
-        jira_base_url.trim_end_matches('/').to_owned()
-    }
-}
-
 fn jira_auth_header(email: &str, token: &str) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     format!("Basic {}", STANDARD.encode(format!("{}:{}", email, token)))
@@ -239,17 +230,17 @@ fn jira_auth_header(email: &str, token: &str) -> String {
 /// Search Jira issues using JQL. Returns a compact JSON summary.
 #[tauri::command]
 async fn jira_search(
-    base_url: String,
+    api_url: String,
     email: String,
     api_token: String,
     jql: String,
     max_results: Option<u32>,
 ) -> Result<String, String> {
-    let api_base = jira_api_base(&base_url);
+    let base = api_url.trim_end_matches('/');
     let max = max_results.unwrap_or(10).to_string();
     let client = reqwest::Client::new();
     let resp = client
-        .get(format!("{}/rest/api/2/search", api_base))
+        .get(format!("{}/search", base))
         .header("Authorization", jira_auth_header(&email, &api_token))
         .header("Accept", "application/json")
         .query(&[
@@ -291,15 +282,15 @@ async fn jira_search(
 /// Get full details of a single Jira issue including recent comments.
 #[tauri::command]
 async fn jira_get_issue(
-    base_url: String,
+    api_url: String,
     email: String,
     api_token: String,
     issue_key: String,
 ) -> Result<String, String> {
-    let api_base = jira_api_base(&base_url);
+    let base = api_url.trim_end_matches('/');
     let client = reqwest::Client::new();
     let resp = client
-        .get(format!("{}/rest/api/2/issue/{}", api_base, issue_key))
+        .get(format!("{}/issue/{}", base, issue_key))
         .header("Authorization", jira_auth_header(&email, &api_token))
         .header("Accept", "application/json")
         .query(&[("fields", "summary,status,assignee,priority,issuetype,description,comment")])
@@ -342,7 +333,7 @@ async fn jira_get_issue(
 /// Create a new Jira issue.
 #[tauri::command]
 async fn jira_create_issue(
-    base_url: String,
+    api_url: String,
     email: String,
     api_token: String,
     project_key: String,
@@ -350,7 +341,7 @@ async fn jira_create_issue(
     summary: String,
     description: Option<String>,
 ) -> Result<String, String> {
-    let api_base = jira_api_base(&base_url);
+    let base = api_url.trim_end_matches('/');
     let client = reqwest::Client::new();
 
     let mut fields = serde_json::json!({
@@ -363,7 +354,7 @@ async fn jira_create_issue(
     }
 
     let resp = client
-        .post(format!("{}/rest/api/2/issue", api_base))
+        .post(format!("{}/issue", base))
         .header("Authorization", jira_auth_header(&email, &api_token))
         .header("Content-Type", "application/json")
         .header("Accept", "application/json")
@@ -385,16 +376,16 @@ async fn jira_create_issue(
 /// Add a comment to an existing Jira issue.
 #[tauri::command]
 async fn jira_add_comment(
-    base_url: String,
+    api_url: String,
     email: String,
     api_token: String,
     issue_key: String,
     comment: String,
 ) -> Result<String, String> {
-    let api_base = jira_api_base(&base_url);
+    let base = api_url.trim_end_matches('/');
     let client = reqwest::Client::new();
     client
-        .post(format!("{}/rest/api/2/issue/{}/comment", api_base, issue_key))
+        .post(format!("{}/issue/{}/comment", base, issue_key))
         .header("Authorization", jira_auth_header(&email, &api_token))
         .header("Content-Type", "application/json")
         .header("Accept", "application/json")

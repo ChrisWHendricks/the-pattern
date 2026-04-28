@@ -294,10 +294,10 @@ Logrus inbox: ${logrusCount} item${logrusCount !== 1 ? "s" : ""} waiting${sparks
       }
 
       case "search_jira_issues": {
-        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        if (!settings.jiraApiConnected) return "Jira API not configured. Set API URL, email, and token in Settings → Jira.";
         try {
           return await invoke<string>("jira_search", {
-            baseUrl: settings.jiraBaseUrl,
+            apiUrl: settings.jiraApiUrl,
             email: settings.jiraEmail,
             apiToken: settings.jiraApiToken,
             jql: input.jql as string,
@@ -309,10 +309,10 @@ Logrus inbox: ${logrusCount} item${logrusCount !== 1 ? "s" : ""} waiting${sparks
       }
 
       case "get_jira_issue": {
-        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        if (!settings.jiraApiConnected) return "Jira API not configured. Set API URL, email, and token in Settings → Jira.";
         try {
           return await invoke<string>("jira_get_issue", {
-            baseUrl: settings.jiraBaseUrl,
+            apiUrl: settings.jiraApiUrl,
             email: settings.jiraEmail,
             apiToken: settings.jiraApiToken,
             issueKey: input.issue_key as string,
@@ -323,10 +323,10 @@ Logrus inbox: ${logrusCount} item${logrusCount !== 1 ? "s" : ""} waiting${sparks
       }
 
       case "create_jira_issue": {
-        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        if (!settings.jiraApiConnected) return "Jira API not configured. Set API URL, email, and token in Settings → Jira.";
         try {
           return await invoke<string>("jira_create_issue", {
-            baseUrl: settings.jiraBaseUrl,
+            apiUrl: settings.jiraApiUrl,
             email: settings.jiraEmail,
             apiToken: settings.jiraApiToken,
             projectKey: input.project_key as string,
@@ -340,10 +340,10 @@ Logrus inbox: ${logrusCount} item${logrusCount !== 1 ? "s" : ""} waiting${sparks
       }
 
       case "add_jira_comment": {
-        if (!settings.jiraApiConnected) return "Jira API credentials not configured. Add your email and API token in Settings → Jira.";
+        if (!settings.jiraApiConnected) return "Jira API not configured. Set API URL, email, and token in Settings → Jira.";
         try {
           return await invoke<string>("jira_add_comment", {
-            baseUrl: settings.jiraBaseUrl,
+            apiUrl: settings.jiraApiUrl,
             email: settings.jiraEmail,
             apiToken: settings.jiraApiToken,
             issueKey: input.issue_key as string,
