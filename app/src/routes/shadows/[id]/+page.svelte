@@ -12,6 +12,8 @@
   import ResizeHandle from "$lib/components/ResizeHandle.svelte";
   import { layoutStore } from "$lib/stores/layout.svelte";
 
+  const hidePanel = $derived(settings.knowledgeView === "contextual");
+
   const LS_KEY = "shadows_panel_w";
   let panelWidth = $state(parseInt(typeof localStorage !== "undefined" ? localStorage.getItem(LS_KEY) ?? "240" : "240"));
   $effect(() => localStorage.setItem(LS_KEY, String(panelWidth)));
@@ -79,6 +81,7 @@
 
 <div class="shadow-layout">
   <!-- Left: filtered inscriptions for this shadow -->
+  {#if !hidePanel}
   <div class="shadow-panel" style="width: {panelWidth}px">
     <!-- Cover header with back nav -->
     <div class="shadow-header" style="background: {coverStyle()};">
@@ -174,11 +177,24 @@
       {/if}
     </ul>
   </div>
-
   <ResizeHandle onDelta={(d) => { panelWidth = Math.max(160, Math.min(480, panelWidth + d)); }} />
+  {/if}
 
   <!-- Right: editor -->
   <div class="editor-wrapper">
+    {#if hidePanel && shadow}
+      <div class="shadow-breadcrumb">
+        <button class="back-crumb" onclick={() => goto("/shadows")}>← Shadows</button>
+        <span class="crumb-sep">›</span>
+        <span class="crumb-name">{shadow.name}</span>
+        <button
+          class="crumb-new"
+          onclick={createInscriptionInShadow}
+          disabled={!settings.vaultPath}
+          title="New inscription in this shadow"
+        >+ New</button>
+      </div>
+    {/if}
     {#if !settings.vaultPath}
       <div class="no-content">
         <div class="no-content-icon">◻</div>
@@ -219,7 +235,7 @@
     {:else}
       <div class="no-content">
         <div class="no-content-icon">◻</div>
-        <p>Select an inscription from the panel to begin</p>
+        <p>{hidePanel ? "Select an inscription from the sidebar to begin" : "Select an inscription from the panel to begin"}</p>
       </div>
     {/if}
   </div>
@@ -480,6 +496,55 @@
   .inscription-item:hover .unlink-btn { opacity: 1; }
   .unlink-btn { padding: 6px 8px 6px 4px; }
   .unlink-btn:hover { color: #e06c75; }
+
+  /* ── Shadow breadcrumb (contextual mode) ── */
+  .shadow-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--sidebar-bg);
+    flex-shrink: 0;
+  }
+
+  .back-crumb {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s;
+  }
+
+  .back-crumb:hover { color: var(--text-muted); }
+
+  .crumb-sep {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .crumb-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+  }
+
+  .crumb-new {
+    font-size: 11px;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .crumb-new:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+  .crumb-new:disabled { opacity: 0.3; cursor: not-allowed; }
 
   /* ── Editor area ── */
   .editor-wrapper {

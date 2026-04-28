@@ -1,7 +1,7 @@
 import type { ModelKey } from "$lib/claude";
 
 export type TtsProvider = "system" | "elevenlabs" | "openai";
-export type SidebarLayout = "sections" | "tree" | "panels";
+export type KnowledgeView = "contextual" | "unified";
 
 function ls(key: string, fallback = "") {
   if (typeof localStorage === "undefined") return fallback;
@@ -21,7 +21,7 @@ function createSettings() {
   let openaiVoice = $state(ls("oberon_openai_voice") || "nova");
   let systemVoiceName = $state(ls("oberon_system_voice"));
   let devMode = $state(ls("oberon_dev_mode") === "true");
-  let sidebarLayout = $state<SidebarLayout>((ls("oberon_sidebar_layout") as SidebarLayout) || "sections");
+  let knowledgeView = $state<KnowledgeView>((ls("oberon_knowledge_view") as KnowledgeView) || "contextual");
   let showSettingsDialog = $state(false);
 
   return {
@@ -37,14 +37,14 @@ function createSettings() {
     get openaiVoice() { return openaiVoice; },
     get systemVoiceName() { return systemVoiceName; },
     get devMode() { return devMode; },
-    get sidebarLayout() { return sidebarLayout; },
+    get knowledgeView() { return knowledgeView; },
     get showSettingsDialog() { return showSettingsDialog; },
     get hasApiKey() { return apiKey.length > 0; },
 
-    setSidebarLayout(layout: SidebarLayout) {
-      sidebarLayout = layout;
+    setKnowledgeView(view: KnowledgeView) {
+      knowledgeView = view;
       if (typeof localStorage !== "undefined")
-        localStorage.setItem("oberon_sidebar_layout", layout);
+        localStorage.setItem("oberon_knowledge_view", view);
     },
 
     save(

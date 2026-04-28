@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { settings, type TtsProvider } from "$lib/stores/settings.svelte";
+  import { settings, type TtsProvider, type KnowledgeView } from "$lib/stores/settings.svelte";
   import { MODELS, type ModelKey } from "$lib/claude";
   import { homeDir } from "@tauri-apps/api/path";
   import { invoke } from "@tauri-apps/api/core";
@@ -155,6 +155,28 @@
 
       {:else if tab === "vault"}
         <h2 class="section-title">Vault</h2>
+
+        <div class="setting-block">
+          <p class="block-label">Knowledge View</p>
+          <p class="block-desc">Choose how Shadows, Inscriptions, and Chronicles are displayed. Contextual absorbs lists into the sidebar; Unified routes everything through a single hub.</p>
+          <div class="layout-toggle">
+            {#each ([
+              { id: "contextual", name: "Contextual", sub: "Sidebar absorbs nav lists" },
+              { id: "unified",    name: "Unified",    sub: "Single /knowledge hub" },
+            ] as const) as opt}
+              <button
+                class="layout-btn"
+                class:selected={settings.knowledgeView === opt.id}
+                onclick={() => settings.setKnowledgeView(opt.id as KnowledgeView)}
+              >
+                <span class="layout-name">{opt.name}</span>
+                <span class="layout-sub">{opt.sub}</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="divider"></div>
 
         <div class="setting-block">
           <label class="block-label" for="vault-path">Notes Vault Path</label>
@@ -636,6 +658,35 @@
 
   .model-name { font-size: 13px; font-weight: 600; display: block; }
   .model-sub  { font-size: 11px; display: block; }
+
+  /* ── Layout toggle ───────────────────────────────────────── */
+  .layout-toggle { display: flex; gap: 6px; }
+
+  .layout-btn {
+    flex: 1;
+    padding: 9px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .layout-btn.selected {
+    border-color: var(--accent);
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  }
+
+  .layout-btn:not(.selected):hover { border-color: var(--border-hover); color: var(--text); }
+
+  .layout-name { font-size: 12px; font-weight: 600; display: block; }
+  .layout-sub  { font-size: 10px; display: block; }
 
   /* ── Provider toggle ──────────────────────────────────────── */
   .provider-toggle { display: flex; gap: 6px; }

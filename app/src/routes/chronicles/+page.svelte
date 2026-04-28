@@ -6,6 +6,7 @@
   import OberonChat from "$lib/components/OberonChat.svelte";
 
   let chatOpen = $state(false);
+  const hidePanel = $derived(settings.knowledgeView === "contextual");
 
   onMount(async () => {
     if (settings.vaultPath) {
@@ -24,6 +25,7 @@
 
 <div class="chronicles-layout">
   <!-- Entry list -->
+  {#if !hidePanel}
   <div class="entry-list">
     <div class="list-header">
       <span class="list-title">Chronicles</span>
@@ -56,6 +58,7 @@
       </ul>
     {/if}
   </div>
+  {/if}
 
   <!-- Editor area -->
   <div class="editor-area">

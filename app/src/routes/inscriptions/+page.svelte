@@ -10,6 +10,7 @@
   import OberonChat from "$lib/components/OberonChat.svelte";
 
   let chatOpen = $state(false);
+  const hidePanel = $derived(settings.knowledgeView === "contextual");
 
   const linkedArtifacts = $derived(
     vault.currentInscription
@@ -30,7 +31,7 @@
 
 <div class="inscriptions-layout">
   <div class="inscriptions-main">
-    <InscriptionsList />
+    {#if !hidePanel}<InscriptionsList />{/if}
 
     <div class="editor-area">
       {#if !settings.vaultPath}

@@ -2,9 +2,7 @@
   import { settings } from "$lib/stores/settings.svelte";
   import { conversation } from "$lib/stores/conversation.svelte";
   import { layoutStore } from "$lib/stores/layout.svelte";
-  import SidebarSections from "$lib/components/SidebarSections.svelte";
   import SidebarTree from "$lib/components/SidebarTree.svelte";
-  import SidebarPanelNav from "$lib/components/SidebarPanelNav.svelte";
 </script>
 
 <aside class="sidebar">
@@ -17,13 +15,7 @@
   </div>
 
   <div class="nav-shell">
-    {#if settings.sidebarLayout === "tree"}
-      <SidebarTree />
-    {:else if settings.sidebarLayout === "panels"}
-      <SidebarPanelNav />
-    {:else}
-      <SidebarSections />
-    {/if}
+    <SidebarTree />
 
     <div class="nav-pinned">
       <button
