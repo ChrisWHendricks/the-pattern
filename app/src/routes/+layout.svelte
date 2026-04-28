@@ -1,15 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { afterNavigate } from "$app/navigation";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import SettingsDialog from "$lib/components/SettingsDialog.svelte";
   import OberonPanel from "$lib/components/OberonPanel.svelte";
   import ResizeHandle from "$lib/components/ResizeHandle.svelte";
+  import NavBar from "$lib/components/NavBar.svelte";
   import { settings } from "$lib/stores/settings.svelte";
   import { commitments } from "$lib/stores/commitments.svelte";
   import { vault } from "$lib/stores/vault.svelte";
   import { layoutStore } from "$lib/stores/layout.svelte";
+  import { navHistory } from "$lib/stores/nav-history.svelte";
   import { listen } from "@tauri-apps/api/event";
   import { page } from "$app/stores";
+
+  afterNavigate(({ to }) => {
+    if (to?.url) {
+      const path = to.url.pathname + (to.url.search || "");
+      navHistory.push(path);
+    }
+  });
 
   let { children } = $props();
 
@@ -61,6 +71,7 @@
     <ResizeHandle onDelta={(d) => layoutStore.resizeSidebar(d)} />
 
     <div class="main">
+      <NavBar />
       {@render children()}
     </div>
 

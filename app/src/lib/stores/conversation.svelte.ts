@@ -368,10 +368,17 @@ Logrus inbox: ${logrusCount} item${logrusCount !== 1 ? "s" : ""} waiting${sparks
     let vaultContext = "";
     let citedNotes: string[] = [];
     try {
-      const results = searchInscriptions(content, vault.searchIndex);
-      if (results.length > 0) {
-        vaultContext = buildVaultContext(results);
-        citedNotes = results.map((r) => r.title);
+      const meaningfulTerms = content
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
+        .split(/\s+/)
+        .filter((t) => t.length > 2 && !["the","a","an","and","or","but","in","on","at","to","for","of","with","by","from","is","it","its","was","are","were","be","been","being","have","has","had","do","does","did","will","would","could","should","may","might","can","this","that","these","those","i","you","he","she","we","they","my","your","his","her","our","their","what","which","who","how","when","where","why","all","any","some","no","not","so","if","as","up","out","about","into","than","then","just","also","more","very"].includes(t));
+      if (meaningfulTerms.length >= 3) {
+        const results = searchInscriptions(content, vault.searchIndex, 4, 3.0);
+        if (results.length > 0) {
+          vaultContext = buildVaultContext(results);
+          citedNotes = results.map((r) => r.title);
+        }
       }
     } finally {
       isSearching = false;

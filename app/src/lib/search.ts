@@ -87,7 +87,7 @@ export function searchInscriptions(
   query: string,
   index: IndexedInscription[],
   topK = 4,
-  minScore = 0.5
+  minScore = 2.0
 ): SearchResult[] {
   if (!query.trim() || index.length === 0) return [];
 
