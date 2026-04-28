@@ -7,9 +7,11 @@ import {
   APP_TOOLS,
   type OberonMode,
 } from "$lib/claude";
+import { findOpenLoops } from "$lib/openLoops";
 import { searchInscriptions, buildVaultContext } from "$lib/search";
 import { settings } from "$lib/stores/settings.svelte";
 import { commitments } from "$lib/stores/commitments.svelte";
+import { sparks } from "$lib/stores/sparks.svelte";
 import { sessionStore } from "$lib/stores/sessions.svelte";
 import { vault } from "$lib/stores/vault.svelte";
 import { shadowsStore } from "$lib/stores/shadows.svelte";
@@ -17,6 +19,7 @@ import { issuesStore } from "$lib/stores/issues.svelte";
 import { loadChronicleEntry, saveChronicleEntry, todayDateStr } from "$lib/vault";
 import { logrusStore } from "$lib/stores/logrus.svelte";
 import { logrusIcon } from "$lib/logrus";
+import { top3Store } from "$lib/stores/top3.svelte";
 
 export type Message = {
   id: string;
@@ -97,6 +100,47 @@ function createConversation() {
         if (!match) return `No open commitment matching "${input.text}" found.`;
         commitments.complete(match.id);
         return `Marked complete: "${match.text}"`;
+      }
+
+      case "delete_commitment": {
+        const query = (input.text as string).toLowerCase();
+        const match = commitments.open.find(
+          (c) => c.text.toLowerCase().includes(query) || query.includes(c.text.toLowerCase())
+        );
+        if (!match) return `No open commitment matching "${input.text}" found.`;
+        commitments.remove(match.id);
+        return `Deleted: "${match.text}"`;
+      }
+
+      case "demote_commitment": {
+        const query = (input.text as string).toLowerCase();
+        const match = commitments.open.find(
+          (c) => c.text.toLowerCase().includes(query) || query.includes(c.text.toLowerCase())
+        );
+        if (!match) return `No open commitment matching "${input.text}" found.`;
+        commitments.remove(match.id);
+        sparks.add(match.text);
+        return `Moved to sparks: "${match.text}"`;
+      }
+
+      case "add_spark": {
+        sparks.add(input.text as string);
+        return `Spark captured: "${input.text}"`;
+      }
+
+      case "list_sparks": {
+        return sparks.openSummary();
+      }
+
+      case "promote_spark": {
+        const query = (input.text as string).toLowerCase();
+        const match = sparks.open.find(
+          (s) => s.text.toLowerCase().includes(query) || query.includes(s.text.toLowerCase())
+        );
+        if (!match) return `No open spark matching "${input.text}" found.`;
+        sparks.markPromoted(match.id);
+        commitments.add({ text: match.text });
+        return `Promoted to commitment: "${match.text}"`;
       }
 
       case "create_shadow": {
@@ -197,6 +241,57 @@ function createConversation() {
         }
       }
 
+      case "get_cockpit_briefing": {
+        const hour = new Date().getHours();
+        const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+        const openCommitments = commitments.open;
+        const commitmentLines = openCommitments.slice(0, 6).map((c) => {
+          let line = `- ${c.text}`;
+          if (c.person) line += ` (→ ${c.person})`;
+          if (c.due) line += ` [due: ${c.due}]`;
+          return line;
+        }).join("\n");
+
+        const priorities = top3Store.items;
+        const top3Filled = priorities.filter((i) => i.text.trim()).length;
+        const top3Done = priorities.filter((i) => i.done).length;
+        const top3Lines = priorities
+          .filter((i) => i.text.trim())
+          .map((item, idx) => `${idx + 1}. ${item.text}${item.done ? " ✓" : ""}`)
+          .join("\n");
+
+        const loops = findOpenLoops(vault.searchIndex, 5);
+        const loopLines = loops.map((l) => `- ${l.text} (in: ${l.title})`).join("\n");
+
+        let logrusCount = logrusStore.items.length;
+        if (logrusCount === 0 && settings.vaultPath) {
+          await logrusStore.scan();
+          logrusCount = logrusStore.items.length;
+        }
+
+        let sparksSection = "";
+        if (input.include_sparks !== false) {
+          const openSparks = sparks.open.slice(0, 5);
+          if (openSparks.length > 0) {
+            sparksSection = `\nOpen sparks:\n${openSparks.map((s) => `- ${s.text}`).join("\n")}`;
+          }
+        }
+
+        return `COCKPIT SNAPSHOT — ${timeOfDay.toUpperCase()}
+
+Open commitments (${openCommitments.length} total):
+${commitmentLines || "None"}
+
+Top 3 today: ${top3Filled > 0 ? `${top3Done}/${top3Filled} done` : "Not set yet"}
+${top3Lines || "(empty)"}
+
+Open loops in vault: ${loops.length}
+${loopLines || "None found"}
+
+Logrus inbox: ${logrusCount} item${logrusCount !== 1 ? "s" : ""} waiting${sparksSection}`;
+      }
+
       default:
         return `Unknown tool: ${name}`;
     }
@@ -277,6 +372,12 @@ function createConversation() {
     }
   }
 
+  async function startCockpitBriefing() {
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+    await send(`Good ${greeting}. Run my cockpit briefing — call get_cockpit_briefing first, then give me a direct 2-3 sentence summary of what needs my attention most right now. End with one specific question: what do I want to tackle first?`);
+  }
+
   async function startMorningBriefing() {
     const vaultResults = searchInscriptions(
       "today priorities commitments tasks focus",
@@ -342,6 +443,7 @@ function createConversation() {
     setMode,
     send,
     startMorningBriefing,
+    startCockpitBriefing,
     startNewSession,
   };
 }

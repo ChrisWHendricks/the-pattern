@@ -34,12 +34,14 @@ The Pattern app capabilities you can reference and invoke:
 - **Shadows**: named collections of Inscriptions — like notebooks or project folders
 - **Quick Capture**: global hotkey (Cmd+Shift+K) captures a thought from anywhere on the system
 - **Focus Mode**: distraction-free Pomodoro work session with task breakdown
-- **Commitments**: tracks verbal promises Chris makes to people
+- **Commitments**: tracks verbal promises Chris makes to people — active obligations with urgency or accountability
+- **Sparks**: captured intentions — things Chris wants to explore or do eventually, but with no current deadline. Not commitments, just parked aspirations. Surface these during morning briefings.
 - **Issue Tracker**: defects and feature requests for The Pattern app itself
 - **Voice I/O**: microphone for voice input, TTS for voice output (configured in Settings → Voice)
 
 Actions you can perform — use tool calls, never say you "can't do" these:
-- Add a commitment, list open commitments, mark a commitment complete
+- Add a commitment, list open commitments, mark a commitment complete, delete a commitment, demote a commitment to a spark
+- Add a spark, list sparks, promote a spark to a commitment
 - Create a Shadow, list Shadows, assign an Inscription to a Shadow
 - Create a defect or feature request, list issues, update an issue's status
 
@@ -102,6 +104,55 @@ export const APP_TOOLS: Anthropic.Tool[] = [
       type: "object" as const,
       properties: {
         text: { type: "string", description: "The commitment text or a close match" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "delete_commitment",
+    description: "Permanently delete a commitment by fuzzy-matching its text. Use when Chris says it's no longer relevant, was entered by mistake, or he explicitly wants it gone.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "The commitment text or a close match" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "demote_commitment",
+    description: "Demote a commitment to a Spark — use when something Chris committed to no longer has urgency or a deadline, but he still wants to do it eventually. Removes it from commitments and adds it to sparks.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "The commitment text or a close match" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "add_spark",
+    description: "Capture a Spark — something Chris wants to explore or do eventually, with no urgency or deadline. Use this for aspirations, deferred intentions, 'someday' ideas, or personal growth items that aren't active commitments.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "The intention or aspiration to capture" },
+      },
+      required: ["text"],
+    },
+  },
+  {
+    name: "list_sparks",
+    description: "List Chris's open Sparks — captured intentions he wants to act on eventually. Surface these during morning briefings or when he asks what he's been meaning to do.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "promote_spark",
+    description: "Promote a Spark to an active Commitment — use when Chris decides he's ready to act on something that was previously deferred. Fuzzy-matches the spark text.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        text: { type: "string", description: "The spark text or a close match" },
       },
       required: ["text"],
     },
@@ -175,6 +226,19 @@ export const APP_TOOLS: Anthropic.Tool[] = [
     name: "list_logrus",
     description: "List items currently in The Logrus (the inbox). These are unprocessed documents — scanned files, PDFs, images — waiting to be claimed into the vault. Use this when the user asks about unprocessed items, their inbox, things waiting to be reviewed, or when doing a daily briefing.",
     input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "get_cockpit_briefing",
+    description: "Gather a complete structured snapshot of Chris's current state for the cockpit briefing. Returns commitments, Top 3 status, Logrus count, open loops count, and sparks. Call this at the START of a cockpit briefing to get fresh data before composing your opening statement.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        include_sparks: {
+          type: "boolean" as const,
+          description: "Whether to include open sparks (default true)",
+        },
+      },
+    },
   },
   {
     name: "read_today_chronicle",
@@ -347,7 +411,7 @@ function stripJsonFences(text: string): string {
 
 // ── Brain Dump Triage ─────────────────────────────────────────────────────────
 
-export type TriageCategory = "inscription" | "commitment" | "chronicle" | "discard";
+export type TriageCategory = "inscription" | "commitment" | "chronicle" | "spark" | "discard";
 
 export type TriageItem = {
   text: string;
@@ -370,13 +434,14 @@ export async function triageBrainDump(
         content: `You are helping Chris triage a brain dump — a rapid list of thoughts, todos, ideas, and worries dumped from working memory.
 
 For each item, assign one category:
-- "inscription" — worth keeping as a note (idea, concept, reference, something to research)
-- "commitment" — something Chris needs to do, promised to do, or must follow up on
+- "inscription" — worth keeping as a note (idea, concept, reference, factual thing to remember)
+- "commitment" — something Chris needs to do soon, promised to someone, or has a near-term deadline; has urgency or external accountability
+- "spark" — something Chris wants to explore or do eventually, but has no deadline or obligation; a personal aspiration or deferred intention (e.g. "learn more about X", "read that book", "look into Y someday")
 - "chronicle" — a reflection, feeling, observation, or event worth logging in today's journal
 - "discard" — noise, vague filler, already handled, or genuinely not worth keeping
 
 Return ONLY a valid JSON array — no markdown, no explanation.
-Schema: [{"text":"original item text","category":"inscription|commitment|chronicle|discard","reason":"short phrase why"}]
+Schema: [{"text":"original item text","category":"inscription|commitment|spark|chronicle|discard","reason":"short phrase why"}]
 
 Items:
 ${items.map((item, i) => `${i + 1}. ${item}`).join("\n")}

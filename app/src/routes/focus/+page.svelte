@@ -7,7 +7,7 @@
   import { top3Store } from "$lib/stores/top3.svelte";
   import { commitments } from "$lib/stores/commitments.svelte";
   import { vault } from "$lib/stores/vault.svelte";
-  import type { IndexedInscription } from "$lib/search";
+  import { findOpenLoops } from "$lib/openLoops";
 
   let taskInput = $state("");
 
@@ -18,30 +18,6 @@
   let chatInput = $state("");
   let listEl = $state<HTMLElement | null>(null);
   let inputEl = $state<HTMLTextAreaElement | null>(null);
-
-  type OpenLoop = { title: string; path: string; text: string };
-
-  function findOpenLoops(index: IndexedInscription[], limit = 8): OpenLoop[] {
-    const loops: OpenLoop[] = [];
-    for (const entry of index) {
-      if (loops.length >= limit) break;
-      const lines = entry.content.split("\n");
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (/^-\s+\[\s+\]/.test(trimmed) || /^TODO:/i.test(trimmed)) {
-          const text = trimmed
-            .replace(/^-\s+\[\s+\]\s*/, "")
-            .replace(/^TODO:\s*/i, "")
-            .trim();
-          if (text) {
-            loops.push({ title: entry.title, path: entry.path, text });
-            if (loops.length >= limit) break;
-          }
-        }
-      }
-    }
-    return loops;
-  }
 
   const openLoops = $derived(findOpenLoops(vault.searchIndex));
 

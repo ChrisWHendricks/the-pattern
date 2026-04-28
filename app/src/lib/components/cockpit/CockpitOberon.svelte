@@ -3,8 +3,7 @@
   import { settings } from "$lib/stores/settings.svelte";
   import { vault } from "$lib/stores/vault.svelte";
   import { voice } from "$lib/voice.svelte";
-  import { page } from "$app/stores";
-  import MessageBubble from "./MessageBubble.svelte";
+  import MessageBubble from "$lib/components/MessageBubble.svelte";
 
   let input = $state("");
   let listEl = $state<HTMLElement | null>(null);
@@ -14,19 +13,11 @@
     conversation.messages;
     conversation.streamingContent;
     if (listEl) {
-      setTimeout(() => {
-        if (listEl) listEl.scrollTop = listEl.scrollHeight;
-      }, 10);
+      setTimeout(() => { if (listEl) listEl.scrollTop = listEl.scrollHeight; }, 10);
     }
   });
 
-  $effect(() => {
-    if (settings.hasApiKey && conversation.isEmpty && $page.url.pathname !== "/cockpit") {
-      conversation.startMorningBriefing();
-    }
-  });
-
-  // Speak Oberon's response when streaming finishes
+  // Speak last Oberon response when streaming finishes
   let prevStreaming = false;
   $effect(() => {
     const streaming = conversation.isStreaming;
@@ -69,34 +60,48 @@
       });
     }
   }
+
+  async function newSession() {
+    await conversation.startNewSession();
+    await conversation.startCockpitBriefing();
+  }
 </script>
 
-<div class="chat">
+<div class="oberon-pane">
+  <div class="oberon-header">
+    <div class="oberon-identity">
+      <span class="oberon-glyph">◈</span>
+      <span class="oberon-name">OBERON</span>
+      <span class="oberon-mode">{conversation.mode}</span>
+    </div>
+    <div class="header-actions">
+      <button
+        class="mode-btn"
+        class:active={conversation.mode === "coach"}
+        onclick={() => conversation.setMode("coach")}
+        title="Coach mode"
+      >Coach</button>
+      <button
+        class="mode-btn"
+        class:active={conversation.mode === "assistant"}
+        onclick={() => conversation.setMode("assistant")}
+        title="Assistant mode"
+      >Assistant</button>
+      <button class="icon-btn" onclick={newSession} title="New briefing" disabled={conversation.isSummarizing}>
+        ↺
+      </button>
+    </div>
+  </div>
+
   {#if !settings.hasApiKey}
     <div class="empty-state">
-      <div class="empty-mark">⬡</div>
-      <h2>Welcome to The Pattern</h2>
-      <p>Connect Oberon to get started. You'll need an Anthropic API key.</p>
+      <div class="empty-mark">◈</div>
+      <p>Connect Oberon to begin.<br />Add your Anthropic API key in Settings.</p>
       <button class="cta-btn" onclick={() => settings.openSettings()}>
-        Connect Oberon →
+        Connect →
       </button>
     </div>
   {:else}
-    <div class="chat-header">
-      <div class="mode-toggle">
-        <button
-          class:active={conversation.mode === "coach"}
-          onclick={() => conversation.setMode("coach")}
-          title="ADHD coaching, commitment tracking, proactive guidance"
-        >Coach</button>
-        <button
-          class:active={conversation.mode === "assistant"}
-          onclick={() => conversation.setMode("assistant")}
-          title="Direct answers without coaching pressure"
-        >Assistant</button>
-      </div>
-    </div>
-
     <div class="message-list" bind:this={listEl}>
       <div class="messages-inner">
         {#each conversation.messages as message (message.id)}
@@ -105,11 +110,7 @@
 
         {#if conversation.isStreaming}
           <MessageBubble
-            message={{
-              id: "streaming",
-              role: "assistant",
-              content: conversation.streamingContent || " ",
-            }}
+            message={{ id: "streaming", role: "assistant", content: conversation.streamingContent || " " }}
             streaming={true}
           />
         {/if}
@@ -144,7 +145,7 @@
             ? voice.interim || "Listening…"
             : conversation.isStreaming
             ? "Oberon is thinking…"
-            : "Talk to Oberon…"}
+            : "Tell Oberon…"}
           disabled={conversation.isStreaming || voice.isListening}
           rows={1}
         ></textarea>
@@ -155,7 +156,6 @@
             class:active={voice.isListening}
             onclick={toggleMic}
             title={voice.isListening ? "Stop listening" : "Voice input"}
-            aria-label={voice.isListening ? "Stop voice input" : "Start voice input"}
           >
             {#if voice.isListening}
               <span class="mic-pulse">⏹</span>
@@ -180,41 +180,128 @@
       </div>
 
       <div class="input-hint">
-        <span class="hint-text">
-          {#if conversation.isExecutingTool}
-            Working on that…
-          {:else if conversation.isSearching}
-            Searching vault…
-          {:else if voice.isListening}
-            {voice.interim || "Listening… speak now"}
-          {:else}
-            Enter to send · Shift+Enter for newline
-            {#if vault.indexSize > 0}· {vault.indexSize} inscriptions indexed{/if}
-          {/if}
-        </span>
+        {#if conversation.isExecutingTool}
+          Working on that…
+        {:else if conversation.isSearching}
+          Searching vault…
+        {:else if voice.isListening}
+          {voice.interim || "Listening…"}
+        {:else}
+          Enter · Shift+Enter for newline
+          {#if vault.indexSize > 0}· {vault.indexSize} inscriptions{/if}
+        {/if}
 
-        <div class="hint-actions">
-          {#if voice.isSpeaking}
-            <button class="tts-btn speaking" onclick={() => voice.stopSpeaking()} title="Stop speaking">
-              🔊
-            </button>
-          {:else if settings.ttsEnabled}
-            <span class="tts-indicator" title="Read-aloud on">🔊</span>
-          {/if}
-        </div>
+        {#if voice.isSpeaking}
+          <button class="tts-btn speaking" onclick={() => voice.stopSpeaking()}>🔊</button>
+        {:else if settings.ttsEnabled}
+          <span class="tts-indicator">🔊</span>
+        {/if}
       </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .chat {
+  .oberon-pane {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    position: relative;
+    overflow: hidden;
+    background: var(--bg);
   }
+
+  .oberon-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 44px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .oberon-identity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .oberon-glyph {
+    font-size: 14px;
+    color: var(--oberon);
+  }
+
+  .oberon-name {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    color: var(--oberon);
+  }
+
+  .oberon-mode {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--oberon) 15%, transparent);
+    color: var(--oberon);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mode-btn {
+    padding: 3px 8px;
+    font-size: 10px;
+    font-family: var(--font-sans);
+    letter-spacing: 0.04em;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    text-transform: uppercase;
+  }
+
+  .mode-btn:hover { color: var(--text-muted); }
+
+  .mode-btn.active {
+    background: var(--oberon-dim);
+    border-color: color-mix(in srgb, var(--oberon) 30%, transparent);
+    color: var(--oberon);
+  }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    border-color: var(--border-hover);
+    color: var(--text-muted);
+  }
+
+  .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .empty-state {
     flex: 1;
@@ -227,70 +314,27 @@
     text-align: center;
   }
 
-  .empty-mark { font-size: 48px; color: var(--accent); opacity: 0.6; }
-
-  .empty-state h2 { margin: 0; font-size: 20px; font-weight: 600; color: var(--text); }
+  .empty-mark { font-size: 36px; color: var(--oberon); opacity: 0.4; }
 
   .empty-state p {
-    margin: 0;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text-muted);
-    max-width: 300px;
     line-height: 1.6;
   }
 
   .cta-btn {
-    margin-top: 8px;
-    padding: 10px 24px;
+    padding: 8px 20px;
     background: var(--accent);
     border: none;
     border-radius: 8px;
     color: #000;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.15s;
   }
 
   .cta-btn:hover { opacity: 0.9; }
-
-  /* ── Chat header / mode toggle ────────────────────────────────── */
-  .chat-header {
-    padding: 6px 16px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-shrink: 0;
-  }
-
-  .mode-toggle {
-    display: flex;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-
-  .mode-toggle button {
-    padding: 3px 10px;
-    font-size: 10px;
-    font-family: var(--font-sans);
-    letter-spacing: 0.04em;
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-    text-transform: uppercase;
-  }
-
-  .mode-toggle button:hover { color: var(--text-muted); }
-
-  .mode-toggle button.active {
-    background: var(--oberon-dim);
-    color: var(--oberon);
-  }
 
   .message-list {
     flex: 1;
@@ -350,11 +394,19 @@
     margin: 4px 0;
   }
 
-  /* ── Input area ──────────────────────────────────────────────── */
+  .system-notice {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 8px 0;
+    font-style: italic;
+  }
+
   .input-area {
     padding: 12px 20px 16px;
     border-top: 1px solid var(--border);
     background: var(--bg);
+    flex-shrink: 0;
   }
 
   .input-wrap {
@@ -409,8 +461,7 @@
     color: var(--text-muted);
   }
 
-  .mic-btn:hover { border-color: var(--border-hover); color: var(--text); }
-
+  .mic-btn:hover { border-color: var(--border-hover); }
   .mic-btn.active {
     background: color-mix(in srgb, var(--accent) 15%, transparent);
     border-color: var(--accent);
@@ -450,7 +501,7 @@
   .spinner {
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(0,0,0,0.3);
     border-top-color: #000;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
@@ -459,20 +510,14 @@
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ── Hint row ──────────────────────────────────────────────── */
   .input-hint {
     margin-top: 6px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
-
-  .hint-text {
     font-size: 10px;
     color: var(--text-dim);
   }
-
-  .hint-actions { display: flex; align-items: center; gap: 6px; }
 
   .tts-btn {
     background: none;
@@ -480,34 +525,17 @@
     font-size: 13px;
     cursor: pointer;
     padding: 0;
-    line-height: 1;
     opacity: 0.7;
     transition: opacity 0.15s;
   }
 
   .tts-btn:hover { opacity: 1; }
-
-  .tts-btn.speaking {
-    animation: tts-pulse 1s ease-in-out infinite;
-    opacity: 1;
-  }
+  .tts-btn.speaking { animation: tts-pulse 1s ease-in-out infinite; opacity: 1; }
 
   @keyframes tts-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
   }
 
-  .tts-indicator {
-    font-size: 11px;
-    opacity: 0.35;
-    line-height: 1;
-  }
-
-  .system-notice {
-    text-align: center;
-    font-size: 11px;
-    color: var(--text-dim);
-    padding: 8px 0;
-    font-style: italic;
-  }
+  .tts-indicator { font-size: 11px; opacity: 0.35; }
 </style>
