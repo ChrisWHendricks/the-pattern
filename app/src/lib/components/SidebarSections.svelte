@@ -7,7 +7,6 @@
 
   const dailyItems = [
     { label: "Home",       icon: "☀", href: "/home" },
-    { label: "Top 3",      icon: "≡", href: "/top3" },
     { label: "Focus",      icon: "◎", href: "/focus" },
     { label: "Brain Dump", icon: "⟁", href: "/brain-dump" },
     { label: "Sparks",     icon: "◇", href: "/sparks" },
