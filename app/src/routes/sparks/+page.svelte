@@ -4,6 +4,7 @@
   import { sparks } from "$lib/stores/sparks.svelte";
   import { commitments } from "$lib/stores/commitments.svelte";
   import type { Commitment } from "$lib/stores/commitments.svelte";
+  import JiraText from "$lib/components/JiraText.svelte";
 
   type Tab = "commitments" | "sparks";
 
@@ -309,7 +310,7 @@
                     onclick={(e) => { e.stopPropagation(); commitments.complete(c.id); }}
                   ></span>
 
-                  <span class="row-text">{c.text}</span>
+                  <JiraText text={c.text} class="row-text" />
 
                   <!-- Chips (hidden when expanded) -->
                   {#if expandedId !== c.id}
@@ -393,7 +394,7 @@
                     title="Reopen"
                     onclick={(e) => { e.stopPropagation(); commitments.reopen(c.id); }}
                   ></span>
-                  <span class="row-text done-text">{c.text}</span>
+                  <JiraText text={c.text} class="row-text done-text" />
                   {#if c.person}
                     <span class="chips">
                       <span class="chip person-chip done-chip">{c.person}</span>
@@ -456,7 +457,7 @@
           {#each sparks.open as spark (spark.id)}
             <li class="spark-row">
               <span class="spark-diamond">◇</span>
-              <span class="row-text spark-text">{spark.text}</span>
+              <JiraText text={spark.text} class="row-text spark-text" />
               <span class="spark-hover-actions">
                 <button
                   class="commit-action-btn"

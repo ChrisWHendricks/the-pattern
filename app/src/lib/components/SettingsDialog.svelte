@@ -5,7 +5,7 @@
   import { homeDir } from "@tauri-apps/api/path";
   import { invoke } from "@tauri-apps/api/core";
 
-  type Tab = "oberon" | "vault" | "voice";
+  type Tab = "oberon" | "vault" | "voice" | "jira";
 
   let tab = $state<Tab>("oberon");
 
@@ -21,6 +21,8 @@
   let draftOpenaiVoice = $state(settings.openaiVoice);
   let draftSystemVoiceName = $state(settings.systemVoiceName);
   let draftDevMode = $state(settings.devMode);
+  let draftJiraBaseUrl = $state(settings.jiraBaseUrl);
+  let draftJiraProjectsRaw = $state(settings.jiraProjects.join(", "));
   let systemVoiceNames = $state<string[]>([]);
   let showKey = $state(false);
   let showElKey = $state(false);
@@ -32,6 +34,7 @@
     { id: "oberon", icon: "⬡", label: "Oberon" },
     { id: "vault",  icon: "◫", label: "Vault" },
     { id: "voice",  icon: "◎", label: "Voice" },
+    { id: "jira",   icon: "◈", label: "Jira" },
   ];
 
   onMount(() => {
@@ -54,6 +57,10 @@
 
   function save() {
     if (!draftKey.trim()) return;
+    const jiraProjects = draftJiraProjectsRaw
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
     settings.save(
       draftKey.trim(),
       draftModel,
@@ -67,6 +74,8 @@
       draftOpenaiVoice,
       draftSystemVoiceName,
       draftDevMode,
+      draftJiraBaseUrl.trim(),
+      jiraProjects,
     );
   }
 
@@ -374,6 +383,36 @@
             </div>
           {/if}
         {/if}
+
+      {:else if tab === "jira"}
+        <h2 class="section-title">Jira</h2>
+
+        <div class="setting-block">
+          <label class="block-label" for="jira-base-url">Base URL</label>
+          <p class="block-desc">The URL prefix for Jira issue links. Jira IDs in inscriptions, chronicles, and commitments will link here. Leave empty to disable auto-linking.</p>
+          <input
+            id="jira-base-url"
+            type="text"
+            placeholder="https://your-instance.atlassian.net/browse/"
+            bind:value={draftJiraBaseUrl}
+            spellcheck={false}
+          />
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="setting-block">
+          <label class="block-label" for="jira-projects">Project Keys</label>
+          <p class="block-desc">Comma-separated list of Jira project keys to auto-link (e.g. <strong>JEDI, INCOM, CAD, CNX</strong>). Leave empty to auto-link any <code>PROJ-123</code> pattern.</p>
+          <input
+            id="jira-projects"
+            type="text"
+            placeholder="JEDI, INCOM, CAD, CNX"
+            bind:value={draftJiraProjectsRaw}
+            spellcheck={false}
+          />
+        </div>
+
       {/if}
     </div>
 

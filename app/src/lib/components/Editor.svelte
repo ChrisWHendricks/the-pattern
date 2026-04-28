@@ -7,6 +7,9 @@
   import { SlashCommands } from "$lib/editor/slash-commands";
   import { BlockActions } from "$lib/editor/block-actions";
   import { settings } from "$lib/stores/settings.svelte";
+  import Link from "@tiptap/extension-link";
+  import { openUrl } from "@tauri-apps/plugin-opener";
+  import { linkifyMarkdown } from "$lib/jiraLink";
 
   type Props = {
     content: string;
@@ -45,9 +48,20 @@
 
   function toHtml(md: string): string {
     try {
-      return marked.parse(md, { async: false }) as string;
+      const processed = settings.jiraBaseUrl
+        ? linkifyMarkdown(md, settings.jiraBaseUrl, settings.jiraProjects)
+        : md;
+      return marked.parse(processed, { async: false }) as string;
     } catch {
       return md;
+    }
+  }
+
+  function handleEditorClick(e: MouseEvent) {
+    const a = (e.target as Element).closest("a[href]");
+    if (a) {
+      e.preventDefault();
+      openUrl((a as HTMLAnchorElement).href);
     }
   }
 
@@ -63,6 +77,7 @@
       element: el,
       extensions: [
         StarterKit,
+        Link.configure({ openOnClick: false, autolink: false }),
         Placeholder.configure({ placeholder: "Start writing… or type / for commands" }),
         SlashCommands,
         BlockActions.configure({
@@ -255,7 +270,7 @@
       spellcheck={false}
     ></textarea>
   {:else}
-    <div class="editor-content" bind:this={editorEl}></div>
+    <div class="editor-content" bind:this={editorEl} onclick={handleEditorClick}></div>
   {/if}
 </div>
 
@@ -455,6 +470,18 @@
     border: none;
     border-top: 1px solid var(--border);
     margin: 1.6em 0;
+  }
+
+  .editor-content :global(a) {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .editor-content :global(a:hover) {
+    border-bottom-color: var(--accent);
   }
 
   .raw-editor {

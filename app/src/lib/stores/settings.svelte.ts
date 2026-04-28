@@ -8,6 +8,16 @@ function ls(key: string, fallback = "") {
   return localStorage.getItem(key) ?? fallback;
 }
 
+function lsJson<T>(key: string, fallback: T): T {
+  if (typeof localStorage === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function createSettings() {
   let apiKey = $state(ls("oberon_api_key"));
   let model = $state<ModelKey>((ls("oberon_model") as ModelKey) || "haiku");
@@ -22,6 +32,8 @@ function createSettings() {
   let systemVoiceName = $state(ls("oberon_system_voice"));
   let devMode = $state(ls("oberon_dev_mode") === "true");
   let knowledgeView = $state<KnowledgeView>((ls("oberon_knowledge_view") as KnowledgeView) || "contextual");
+  let jiraBaseUrl = $state(ls("oberon_jira_base_url"));
+  let jiraProjects = $state<string[]>(lsJson<string[]>("oberon_jira_projects", []));
   let showSettingsDialog = $state(false);
 
   return {
@@ -38,6 +50,8 @@ function createSettings() {
     get systemVoiceName() { return systemVoiceName; },
     get devMode() { return devMode; },
     get knowledgeView() { return knowledgeView; },
+    get jiraBaseUrl() { return jiraBaseUrl; },
+    get jiraProjects() { return jiraProjects; },
     get showSettingsDialog() { return showSettingsDialog; },
     get hasApiKey() { return apiKey.length > 0; },
 
@@ -60,6 +74,8 @@ function createSettings() {
       newOpenaiVoice: string,
       newSystemVoiceName: string,
       newDevMode: boolean,
+      newJiraBaseUrl: string,
+      newJiraProjects: string[],
     ) {
       apiKey = newKey;
       model = newModel;
@@ -73,6 +89,8 @@ function createSettings() {
       openaiVoice = newOpenaiVoice;
       systemVoiceName = newSystemVoiceName;
       devMode = newDevMode;
+      jiraBaseUrl = newJiraBaseUrl;
+      jiraProjects = newJiraProjects;
       if (typeof localStorage !== "undefined") {
         localStorage.setItem("oberon_api_key", newKey);
         localStorage.setItem("oberon_model", newModel);
@@ -86,6 +104,8 @@ function createSettings() {
         localStorage.setItem("oberon_openai_voice", newOpenaiVoice);
         localStorage.setItem("oberon_system_voice", newSystemVoiceName);
         localStorage.setItem("oberon_dev_mode", String(newDevMode));
+        localStorage.setItem("oberon_jira_base_url", newJiraBaseUrl);
+        localStorage.setItem("oberon_jira_projects", JSON.stringify(newJiraProjects));
       }
       showSettingsDialog = false;
     },

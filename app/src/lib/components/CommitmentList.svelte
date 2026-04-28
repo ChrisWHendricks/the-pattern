@@ -2,6 +2,7 @@
   import { commitments } from "$lib/stores/commitments.svelte";
   import { sparks } from "$lib/stores/sparks.svelte";
   import { conversation } from "$lib/stores/conversation.svelte";
+  import JiraText from "$lib/components/JiraText.svelte";
 
   function demote(id: string, text: string) {
     commitments.remove(id);
@@ -36,7 +37,7 @@
             <span class="checkbox">○</span>
           </button>
           <div class="commitment-body">
-            <span class="commitment-text">{item.text}</span>
+            <JiraText text={item.text} class="commitment-text" />
             {#if item.person || item.due}
               <div class="commitment-meta">
                 {#if item.person}<span class="meta-person">→ {item.person}</span>{/if}
@@ -77,7 +78,7 @@
             >
               <span class="checkbox">✓</span>
             </button>
-            <span class="commitment-text">{item.text}</span>
+            <JiraText text={item.text} class="commitment-text" />
           </li>
         {/each}
       </ul>
